@@ -1,0 +1,7 @@
+This file makes GetterX run in portable mode.
+Settings are stored in the GetterX-Data folder next to getterx.exe and
+downloads default to GetterX-Downloads. Delete this file (and GetterX-Data)
+to use the normal per-user settings instead.
+
+Note: logins (tokens / API keys) are kept in this computer's Windows
+Credential Manager, not in the folder, so they do not travel with it.

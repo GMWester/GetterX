@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GetterX
+Comment=Automatic downloads from GitHub, Modrinth, CurseForge, itch.io and more
+Exec=getterx %U
+Icon=getterx
+Categories=Utility;Network;
+Terminal=false
