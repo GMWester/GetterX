@@ -99,6 +99,8 @@ jobs:
           echo "$KS" | base64 -d > android/app/release.jks
           printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > android/key.properties
           echo "signed=true" >> "$GITHUB_OUTPUT"
+      - name: Android SDK platform 37
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" >/dev/null
       - name: Build APKs
         run: |
           flutter build apk --release --split-per-abi --build-number=${{ needs.test.outputs.build_number }}
@@ -342,7 +344,8 @@ jobs:
         run: |
           $u = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-windows-ia32-release.zip"
           Invoke-WebRequest $u -OutFile d.zip
-          $expected = ((Invoke-WebRequest "$u.sha256sum").Content -split ' ')[0].Trim()
+          Invoke-WebRequest "$u.sha256sum" -OutFile d.sha256
+          $expected = ((Get-Content d.sha256 -Raw).Trim() -split '\s+')[0]
           if ((Get-FileHash d.zip -Algorithm SHA256).Hash.ToLower() -ne $expected.ToLower()) { throw "Dart SDK checksum mismatch" }
           Expand-Archive d.zip -DestinationPath "$env:RUNNER_TEMP\dart38"
           $dart = "$env:RUNNER_TEMP\dart38\dart-sdk\bin\dart.exe"

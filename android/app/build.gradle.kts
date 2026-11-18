@@ -16,7 +16,7 @@ val hasReleaseKey = keyProps.getProperty("storeFile") != null
 
 android {
     namespace = "io.github.gmwester.getterx"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
