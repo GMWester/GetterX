@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:getterx_core/auth.dart';
 import 'package:getterx_core/credentials.dart';
 import 'package:getterx_core/downloader.dart';
 import 'package:getterx_core/models.dart';
@@ -164,5 +165,17 @@ void main() {
     final s = TrackedSource(id: 'w', kind: SourceKind.web, ref: 'https://e.com/', name: 'e');
     WebSource.parsePage(s, Uri.parse(s.ref), html);
     expect(sw.elapsed.inSeconds, lessThan(5));
+  });
+
+  test('Modrinth token check gives a clear message on 401', () async {
+    final client = MockClient((req) async {
+      expect(req.url.host, 'api.modrinth.com');
+      return http.Response('{"error":"invalid_credentials"}', 401);
+    });
+    await expectLater(
+      Auth(client).modrinthUser('mrp_abc'),
+      throwsA(isA<SourceException>().having((e) => e.message, 'message', contains('Read user data'))),
+    );
+    await expectLater(Auth(client).modrinthUser('ghp_wrongservice'), throwsA(isA<SourceException>()));
   });
 }

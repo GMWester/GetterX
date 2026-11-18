@@ -132,7 +132,9 @@ class AccountsPage extends StatelessWidget {
                     onPressed: () => _pasteToken(
                       context,
                       title: 'Modrinth personal access token',
-                      help: 'modrinth.com → Settings → Personal access tokens. Give it only "Read projects" and "Read versions".',
+                      help:
+                          'modrinth.com → Settings → Personal access tokens. Give it only "Read user data" (used to check the token), '
+                          '"Read projects" and "Read versions".',
                       helpUrl: 'https://modrinth.com/settings/pats',
                       validate: (t) => c.auth.modrinthUser(t),
                       save: (t, user) async {

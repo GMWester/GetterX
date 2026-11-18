@@ -140,9 +140,24 @@ class Auth {
 
   // ---------------- Modrinth ----------------
 
+  /// Checks a Modrinth personal access token (needs the "Read user data" scope).
   Future<String> modrinthUser(String token) async {
-    final j =
-        await getJson(client, Uri.parse('https://api.modrinth.com/v2/user'), headers: {'Authorization': token}) as Map;
-    return j['username'] as String;
+    final t = token.trim();
+    if (!t.startsWith('mrp_')) {
+      throw SourceException('That does not look like a Modrinth personal access token (they start with "mrp_").');
+    }
+    try {
+      final j =
+          await getJson(client, Uri.parse('https://api.modrinth.com/v2/user'), headers: {'Authorization': t}) as Map;
+      return j['username'] as String;
+    } on SourceException catch (e) {
+      if (e.message.contains('401')) {
+        throw SourceException(
+          'Modrinth did not accept the token. Make sure it has the "Read user data", '
+          '"Read projects" and "Read versions" permissions, has not expired, and was copied completely.',
+        );
+      }
+      rethrow;
+    }
   }
 }
