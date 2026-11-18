@@ -64,7 +64,7 @@ Not possible: 32-bit x86 Android, Android 6 and older, Windows 7/8 for the deskt
 
 **Self-update** (optional): Settings → *GetterX updates*. Either update automatically, or get an *Update now* button. Updates are verified with SHA-256 before installing.
 
-**Background checks**: Android/iOS use the system scheduler; on Windows/macOS/Linux GetterX registers a scheduled task (Task Scheduler / launchd / systemd timer) that checks without opening a window.
+**Background checks**: while GetterX is open it checks on its own schedule. Android/iOS also check in the background via the system scheduler. On Windows/macOS/Linux checking while GetterX is closed is **opt-in** (Settings → "Also check while GetterX is closed"): it adds a scheduled task (Task Scheduler / launchd / systemd timer). Some antivirus heuristics (e.g. Microsoft Defender `Behavior:Win32/Persistence.A!ml`) flag unsigned programs that schedule themselves; if that happens, turn the option off or allow GetterX.
 
 ## Command line
 

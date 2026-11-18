@@ -58,6 +58,28 @@ Future<void> initBackground() async {
   if (_mobile) await Workmanager().initialize(callbackDispatcher);
 }
 
+/// Removes a desktop scheduler entry left by GetterX 1.0/1.1 when the user
+/// never explicitly enabled background checks (those versions created it by
+/// default, which some antivirus heuristics flag).
+Future<void> removeUnwantedDesktopTask() async {
+  try {
+    if (Platform.isWindows) {
+      final q = await Process.run('schtasks', ['/Query', '/TN', 'GetterX Check']);
+      if (q.exitCode == 0) await configureBackground(enabled: false, intervalMinutes: 0);
+    } else if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'] ?? '';
+      if (File(p.join(home, 'Library', 'LaunchAgents', '$bgTaskName.plist')).existsSync()) {
+        await configureBackground(enabled: false, intervalMinutes: 0);
+      }
+    } else if (Platform.isLinux) {
+      final home = Platform.environment['HOME'] ?? '';
+      if (File(p.join(home, '.config', 'systemd', 'user', 'getterx-check.timer')).existsSync()) {
+        await configureBackground(enabled: false, intervalMinutes: 0);
+      }
+    }
+  } catch (_) {}
+}
+
 /// Enables / disables automatic background checks for the current platform.
 Future<String?> configureBackground({required bool enabled, required int intervalMinutes}) async {
   final minutes = intervalMinutes.clamp(15, 24 * 60);

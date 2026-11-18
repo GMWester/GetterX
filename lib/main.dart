@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dynamic_color/dynamic_color.dart';
@@ -22,6 +23,10 @@ Future<void> main(List<String> args) async {
   await initBackground();
   final paths = await resolveAppPaths();
   final controller = await AppController.create(paths);
+  if (!(Platform.isAndroid || Platform.isIOS) && !controller.settings.desktopBackgroundChecks) {
+    // Clean up the scheduled task older versions created without asking.
+    unawaited(removeUnwantedDesktopTask());
+  }
   if (controller.settings.backgroundChecks && (Platform.isAndroid || Platform.isIOS)) {
     await configureBackground(enabled: true, intervalMinutes: controller.settings.checkIntervalMinutes);
   }
