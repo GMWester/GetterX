@@ -11,6 +11,7 @@ import 'package:getterx_core/engine.dart';
 import 'package:getterx_core/models.dart';
 import 'package:getterx_core/paths.dart';
 import 'package:getterx_core/store.dart';
+import 'package:getterx_core/tls.dart';
 
 import 'background.dart';
 import 'secure_credentials.dart';
@@ -40,7 +41,7 @@ class AppController extends ChangeNotifier {
   static Future<AppController> create(AppPaths paths) async {
     final store = ConfigStore(paths.dataDir);
     await store.load();
-    final client = http.Client();
+    final client = createHttpClient();
     final engine = Engine(store, client: client, defaultDownloadRoot: paths.defaultDownloadRoot);
     final c = AppController._(paths, store, engine, SecureCredentialStore(), client);
     try {

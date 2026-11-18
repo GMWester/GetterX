@@ -23,6 +23,7 @@ import 'sources/itchio.dart';
 import 'sources/modrinth.dart';
 import 'sources/source.dart';
 import 'store.dart';
+import 'tls.dart';
 
 class CheckResult {
   final TrackedSource source;
@@ -61,7 +62,7 @@ class Engine {
   final _running = <String>{};
 
   Engine(this.store, {http.Client? client, PlatformInfo? platform, required this.defaultDownloadRoot})
-    : client = client ?? http.Client(),
+    : client = client ?? createHttpClient(),
       platform = platform ?? PlatformInfo.current();
 
   Stream<Progress> get progress => _progress.stream;
@@ -158,6 +159,7 @@ class Engine {
       // slots (e.g. one jar for 1.21.10 and 1.21.11) is downloaded once.
       final fetched = <String, String>{};
       final failedSlots = <String>{};
+      final failedFiles = <String>{}; // same file needed by several slots: report once
       var n = 0;
       for (final pd in plan.downloads) {
         n++;
@@ -171,6 +173,7 @@ class Engine {
               throw SourceException('Unsafe file path for ${rf.name}');
             }
             final key = '${pd.release.id}/${rf.name}';
+            if (failedFiles.contains(key)) throw const _AlreadyFailed();
             final prev = fetched[key];
             if (prev != null && p.equals(prev, dest.path)) {
               // same file
@@ -208,8 +211,13 @@ class Engine {
               sourceId: s.id,
             ),
           );
+        } on _AlreadyFailed {
+          failedSlots.add(pd.slot);
         } catch (e) {
           failedSlots.add(pd.slot);
+          for (final rf in pd.files) {
+            failedFiles.add('${pd.release.id}/${rf.name}');
+          }
           errors.add(redact('${pd.release.version}: $e'));
           await store.log(LogEntry('error', '${s.name}: ${pd.release.version}: $e', sourceId: s.id));
           // Remove partial files of this slot that are not used elsewhere.
@@ -306,4 +314,8 @@ class Engine {
     _progress.close();
     client.close();
   }
+}
+
+class _AlreadyFailed implements Exception {
+  const _AlreadyFailed();
 }

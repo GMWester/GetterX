@@ -177,7 +177,7 @@ class _SourceTile extends StatelessWidget {
                         if (s.lastError != null) ...[
                           const SizedBox(width: 6),
                           Tooltip(
-                            message: s.lastError!,
+                            message: shortError(s.lastError!),
                             child: Icon(Icons.error_outline, size: 18, color: Theme.of(context).colorScheme.error),
                           ),
                         ],

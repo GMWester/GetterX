@@ -88,3 +88,10 @@ class SectionTitle extends StatelessWidget {
     ),
   );
 }
+
+/// First few lines of a long error text, for tooltips and list rows.
+String shortError(String text, {int lines = 4}) {
+  final all = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+  if (all.length <= lines) return all.join('\n');
+  return '${all.take(lines).join('\n')}\n… and ${all.length - lines} more (open the source for details)';
+}
