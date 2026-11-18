@@ -21,10 +21,16 @@ class Auth {
   final http.Client client;
   Auth(this.client);
 
-  Future<Map<String, dynamic>> _postForm(Uri uri, Map<String, String> body,
-      {Map<String, String> headers = const {}}) async {
-    final res = await client.post(uri,
-        headers: {'User-Agent': userAgent, 'Accept': 'application/json', ...headers}, body: body);
+  Future<Map<String, dynamic>> _postForm(
+    Uri uri,
+    Map<String, String> body, {
+    Map<String, String> headers = const {},
+  }) async {
+    final res = await client.post(
+      uri,
+      headers: {'User-Agent': userAgent, 'Accept': 'application/json', ...headers},
+      body: body,
+    );
     final text = utf8.decode(res.bodyBytes);
     try {
       return (jsonDecode(text) as Map).cast();
@@ -37,8 +43,10 @@ class Auth {
 
   /// Needs the client id of a GitHub OAuth app with "Device flow" enabled.
   Future<DeviceCode> githubStartDeviceFlow(String clientId) async {
-    final j = await _postForm(Uri.parse('https://github.com/login/device/code'),
-        {'client_id': clientId, 'scope': 'repo read:user'});
+    final j = await _postForm(Uri.parse('https://github.com/login/device/code'), {
+      'client_id': clientId,
+      'scope': 'repo read:user',
+    });
     if (j['device_code'] == null) {
       throw SourceException('GitHub: ${j['error_description'] ?? j['error'] ?? j}');
     }
@@ -52,8 +60,7 @@ class Auth {
   }
 
   /// Polls until the user approved the code. Returns the access token.
-  Future<String> githubPollDeviceFlow(String clientId, DeviceCode code,
-      {bool Function()? cancelled}) async {
+  Future<String> githubPollDeviceFlow(String clientId, DeviceCode code, {bool Function()? cancelled}) async {
     var interval = code.interval;
     while (DateTime.now().isBefore(code.expiresAt)) {
       await Future<void>.delayed(Duration(seconds: interval));
@@ -80,8 +87,11 @@ class Auth {
 
   /// Returns the login name for a token (validates it).
   Future<String> githubUser(String token) async {
-    final j = await getJson(client, Uri.parse('https://api.github.com/user'),
-        headers: {'Authorization': 'Bearer $token'}) as Map;
+    final j = await getJson(
+      client,
+      Uri.parse('https://api.github.com/user'),
+      headers: {'Authorization': 'Bearer $token'},
+    ) as Map;
     return j['login'] as String;
   }
 
@@ -100,7 +110,8 @@ class Auth {
     if (j['errors'] != null) throw SourceException('itch.io: ${(j['errors'] as List).join(', ')}');
     if (j['recaptcha_needed'] == true) {
       throw SourceException(
-          'itch.io wants a captcha for this login. Create an API key at itch.io/user/settings/api-keys and paste it instead.');
+        'itch.io wants a captcha for this login. Create an API key at itch.io/user/settings/api-keys and paste it instead.',
+      );
     }
     if (j['totp_needed'] == true) return (key: null, totpToken: j['token'] as String);
     final key = (j['key'] as Map?)?['key'] as String?;
@@ -109,8 +120,7 @@ class Auth {
   }
 
   Future<String> itchVerifyTotp(String totpToken, String code) async {
-    final j = await _postForm(Uri.parse('https://api.itch.io/totp/verify'),
-        {'token': totpToken, 'code': code.trim()});
+    final j = await _postForm(Uri.parse('https://api.itch.io/totp/verify'), {'token': totpToken, 'code': code.trim()});
     if (j['errors'] != null) throw SourceException('itch.io: ${(j['errors'] as List).join(', ')}');
     final key = (j['key'] as Map?)?['key'] as String?;
     if (key == null) throw SourceException('itch.io: unexpected response');
@@ -118,8 +128,11 @@ class Auth {
   }
 
   Future<String> itchUser(String apiKey) async {
-    final j = await getJson(client, Uri.parse('https://api.itch.io/profile?api_key=$apiKey'),
-        headers: {'Authorization': 'Bearer $apiKey'}) as Map;
+    final j = await getJson(
+      client,
+      Uri.parse('https://api.itch.io/profile?api_key=$apiKey'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+    ) as Map;
     if (j['errors'] != null) throw SourceException('itch.io: ${j['errors']}');
     final u = (j['user'] as Map?) ?? const {};
     return (u['username'] ?? u['display_name'] ?? 'itch.io user') as String;
@@ -128,8 +141,8 @@ class Auth {
   // ---------------- Modrinth ----------------
 
   Future<String> modrinthUser(String token) async {
-    final j = await getJson(client, Uri.parse('https://api.modrinth.com/v2/user'),
-        headers: {'Authorization': token}) as Map;
+    final j =
+        await getJson(client, Uri.parse('https://api.modrinth.com/v2/user'), headers: {'Authorization': token}) as Map;
     return j['username'] as String;
   }
 }

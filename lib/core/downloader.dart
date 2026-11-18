@@ -19,12 +19,7 @@ class _DigestSink implements Sink<Digest> {
 
 /// Strongest hash we can verify: (algorithm, expected hex).
 (Hash, String)? _pickHash(Map<String, String> h) {
-  for (final (name, algo) in [
-    ('sha512', sha512),
-    ('sha256', sha256),
-    ('sha1', sha1),
-    ('md5', md5),
-  ]) {
+  for (final (name, algo) in [('sha512', sha512), ('sha256', sha256), ('sha1', sha1), ('md5', md5)]) {
     final v = h[name];
     if (v != null && v.isNotEmpty) return (algo, v);
   }
@@ -76,8 +71,12 @@ class Downloader {
   }
 
   /// Downloads [rf] to [dest], verifying size/hash. Tries mirrors in order.
-  Future<void> download(RemoteFile rf, File dest,
-      {ProgressCallback? onProgress, Map<String, String> headers = const {}}) async {
+  Future<void> download(
+    RemoteFile rf,
+    File dest, {
+    ProgressCallback? onProgress,
+    Map<String, String> headers = const {},
+  }) async {
     await dest.parent.create(recursive: true);
     Object? lastError;
     for (final url in rf.urls) {

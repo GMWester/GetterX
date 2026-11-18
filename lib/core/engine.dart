@@ -14,7 +14,11 @@ import 'models.dart';
 import 'platform_match.dart';
 import 'selector.dart';
 import 'sources/curseforge.dart';
+import 'sources/fdroid.dart';
+import 'sources/forgejo.dart';
 import 'sources/github.dart';
+import 'sources/gitlab.dart';
+import 'sources/web.dart';
 import 'sources/itchio.dart';
 import 'sources/modrinth.dart';
 import 'sources/source.dart';
@@ -53,11 +57,12 @@ class Engine {
       ..clear()
       ..addAll(c.values);
   }
+
   final _running = <String>{};
 
   Engine(this.store, {http.Client? client, PlatformInfo? platform, required this.defaultDownloadRoot})
-      : client = client ?? http.Client(),
-        platform = platform ?? PlatformInfo.current();
+    : client = client ?? http.Client(),
+      platform = platform ?? PlatformInfo.current();
 
   Stream<Progress> get progress => _progress.stream;
   bool isRunning(String id) => _running.contains(id);
@@ -66,19 +71,24 @@ class Engine {
   AppSettings get settings => store.config.settings;
 
   ReleaseSource sourceFor(SourceKind k) => switch (k) {
-        SourceKind.github => GitHubSource(client, token: credentials.githubToken),
-        SourceKind.modrinth => ModrinthSource(client, token: credentials.modrinthToken),
-        SourceKind.curseforge => CurseForgeSource(client,
-            apiKey: credentials.curseforgeApiKey, baseUrl: settings.curseforgeBaseUrl),
-        SourceKind.itchio => ItchSource(client, apiKey: credentials.itchApiKey),
-      };
+    SourceKind.github => GitHubSource(client, token: credentials.githubToken),
+    SourceKind.modrinth => ModrinthSource(client, token: credentials.modrinthToken),
+    SourceKind.curseforge => CurseForgeSource(
+      client,
+      apiKey: credentials.curseforgeApiKey,
+      baseUrl: settings.curseforgeBaseUrl,
+    ),
+    SourceKind.itchio => ItchSource(client, apiKey: credentials.itchApiKey),
+    SourceKind.gitlab => GitLabSource(client),
+    SourceKind.forgejo => ForgejoSource(client),
+    SourceKind.fdroid => FDroidSource(client),
+    SourceKind.web => WebSource(client),
+  };
 
-  String get downloadRoot =>
-      settings.downloadDir.trim().isNotEmpty ? settings.downloadDir.trim() : defaultDownloadRoot;
+  String get downloadRoot => settings.downloadDir.trim().isNotEmpty ? settings.downloadDir.trim() : defaultDownloadRoot;
 
-  String folderFor(TrackedSource s) => s.downloadDir.trim().isNotEmpty
-      ? s.downloadDir.trim()
-      : p.join(downloadRoot, sanitizeName(s.name));
+  String folderFor(TrackedSource s) =>
+      s.downloadDir.trim().isNotEmpty ? s.downloadDir.trim() : p.join(downloadRoot, sanitizeName(s.name));
 
   /// Resolves a pasted link / id into a new source (not yet saved).
   Future<TrackedSource> createFromLink(String input, {SourceKind? forceKind}) async {
@@ -87,27 +97,35 @@ class Engine {
       throw SourceException('Unrecognised link. Paste a GitHub, Modrinth or CurseForge URL.');
     }
     final info = await sourceFor(parsed.kind).fetchProject(parsed.ref);
-    final ref = parsed.kind == SourceKind.github ? info.id : parsed.ref;
+    final ref = const {SourceKind.github, SourceKind.gitlab, SourceKind.forgejo}.contains(parsed.kind)
+        ? info.id
+        : parsed.ref;
     return TrackedSource(
       id: '${parsed.kind.name}:${ref.toLowerCase()}:${DateTime.now().microsecondsSinceEpoch}',
       kind: parsed.kind,
       ref: parsed.kind == SourceKind.curseforge || parsed.kind == SourceKind.itchio ? info.id : ref,
       name: info.name,
-      onlyPlatformFiles: !(parsed.kind == SourceKind.modrinth || parsed.kind == SourceKind.curseforge),
+      onlyPlatformFiles: const {
+        SourceKind.github,
+        SourceKind.gitlab,
+        SourceKind.forgejo,
+        SourceKind.itchio,
+      }.contains(parsed.kind),
     );
   }
 
   Future<List<RemoteRelease>> fetchReleases(TrackedSource s) {
-    final full = s.mode == TrackMode.allReleases ||
+    final full =
+        s.mode == TrackMode.allReleases ||
         s.mode == TrackMode.latestPerLoaderAndGameVersion ||
-        (s.mode == TrackMode.newReleases && s.baseline != null &&
+        (s.mode == TrackMode.newReleases &&
+            s.baseline != null &&
             DateTime.now().difference(s.lastChecked ?? DateTime(0)).inDays > 30);
     return sourceFor(s.kind).fetchReleases(s, full: full);
   }
 
   /// Preview: what would be downloaded / deleted, without touching disk.
-  Future<SyncPlan> preview(TrackedSource s) async =>
-      planSync(s, await fetchReleases(s), platform: platform);
+  Future<SyncPlan> preview(TrackedSource s) async => planSync(s, await fetchReleases(s), platform: platform);
 
   Future<List<CheckResult>> checkAll({bool onlyEnabled = true}) async {
     await store.reload();
@@ -163,10 +181,13 @@ class Engine {
               // Already on disk (e.g. a previous run was interrupted).
             } else {
               _emit(s, 'Downloading ${rf.name}', 0);
-              await Downloader(client).download(rf, dest, onProgress: (r, t) {
-                _emit(s, 'Downloading ${rf.name} ($n/${plan.downloads.length})',
-                    t == null || t == 0 ? null : r / t);
-              });
+              await Downloader(client).download(
+                rf,
+                dest,
+                onProgress: (r, t) {
+                  _emit(s, 'Downloading ${rf.name} ($n/${plan.downloads.length})', t == null || t == 0 ? null : r / t);
+                },
+              );
             }
             fetched[key] = dest.path;
             paths.add(dest.path);
@@ -180,9 +201,13 @@ class Engine {
             downloadedAt: DateTime.now(),
           );
           newRecords.add(rec);
-          await store.log(LogEntry('download',
+          await store.log(
+            LogEntry(
+              'download',
               '${s.name}: ${pd.release.version}${pd.folder.isEmpty ? '' : ' → ${pd.folder}'}',
-              sourceId: s.id));
+              sourceId: s.id,
+            ),
+          );
         } catch (e) {
           failedSlots.add(pd.slot);
           errors.add(redact('${pd.release.version}: $e'));

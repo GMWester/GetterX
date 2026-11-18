@@ -34,8 +34,7 @@ bool isPortableInstall(String installDir) =>
     File(p.join(installDir, 'portable.txt')).existsSync() ||
     Directory(p.join(installDir, 'GetterX-Data')).existsSync();
 
-String _home() =>
-    Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? Directory.current.path;
+String _home() => Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? Directory.current.path;
 
 /// Desktop locations (also used by the CLI). Mobile callers pass their own.
 AppPaths resolveDesktopPaths({String? executable, String? overrideDataDir}) {
@@ -47,8 +46,7 @@ AppPaths resolveDesktopPaths({String? executable, String? overrideDataDir}) {
     return AppPaths(Directory(d), p.join(d, 'Downloads'), false, install);
   }
   if (isPortableInstall(install)) {
-    return AppPaths(Directory(p.join(install, 'GetterX-Data')),
-        p.join(install, 'GetterX-Downloads'), true, install);
+    return AppPaths(Directory(p.join(install, 'GetterX-Data')), p.join(install, 'GetterX-Downloads'), true, install);
   }
   final home = _home();
   final String data;

@@ -35,15 +35,9 @@ int compareVersions(String a, String b) {
     // Weekly snapshots like 25w14a: treat year/week as numbers.
     final s = RegExp(r'^(\d+)w(\d+)([a-z]*)$').firstMatch(v.trim());
     if (s != null) {
-      return (
-        nums: [int.parse(s[1]!), int.parse(s[2]!)],
-        suffix: 'snapshot${s[3]}'
-      );
+      return (nums: [int.parse(s[1]!), int.parse(s[2]!)], suffix: 'snapshot${s[3]}');
     }
     return (nums: const [], suffix: v);
   }
-  return (
-    nums: m[1]!.split('.').map(int.parse).toList(),
-    suffix: m[2]!,
-  );
+  return (nums: m[1]!.split('.').map(int.parse).toList(), suffix: m[2]!);
 }

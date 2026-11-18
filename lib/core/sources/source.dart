@@ -20,18 +20,12 @@ abstract class ReleaseSource {
 
   /// Returns releases, newest first. [full] = false allows sources to stop
   /// after the first page when only the newest releases are needed.
-  Future<List<RemoteRelease>> fetchReleases(TrackedSource source,
-      {bool full = true});
+  Future<List<RemoteRelease>> fetchReleases(TrackedSource source, {bool full = true});
 }
 
-Future<dynamic> getJson(http.Client client, Uri uri,
-    {Map<String, String> headers = const {}}) async {
+Future<dynamic> getJson(http.Client client, Uri uri, {Map<String, String> headers = const {}}) async {
   if (uri.scheme != 'https') throw SourceException('Refusing non-HTTPS request to ${uri.host}');
-  final res = await client.get(uri, headers: {
-    'User-Agent': userAgent,
-    'Accept': 'application/json',
-    ...headers,
-  });
+  final res = await client.get(uri, headers: {'User-Agent': userAgent, 'Accept': 'application/json', ...headers});
   if (res.statusCode == 404) {
     throw SourceException('Not found: $uri');
   }
@@ -43,10 +37,13 @@ Future<dynamic> getJson(http.Client client, Uri uri,
       hint = ' (rate limit resets at ${t.toLocal()})';
     }
     throw SourceException(
-        'HTTP ${res.statusCode} from ${uri.host}$hint. Add an API token in Settings if this repeats.');
+      'HTTP ${res.statusCode} from ${uri.host}$hint. Add an API token in Settings if this repeats.',
+    );
   }
   if (res.statusCode >= 400) {
-    throw SourceException('HTTP ${res.statusCode} from $uri: ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}');
+    throw SourceException(
+      'HTTP ${res.statusCode} from $uri: ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}',
+    );
   }
   return jsonDecode(utf8.decode(res.bodyBytes));
 }

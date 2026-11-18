@@ -12,28 +12,23 @@ class Credentials {
   final String itchApiKey;
   final String modrinthToken;
 
-  const Credentials({
-    this.githubToken = '',
-    this.curseforgeApiKey = '',
-    this.itchApiKey = '',
-    this.modrinthToken = '',
-  });
+  const Credentials({this.githubToken = '', this.curseforgeApiKey = '', this.itchApiKey = '', this.modrinthToken = ''});
 
   static const keys = ['githubToken', 'curseforgeApiKey', 'itchApiKey', 'modrinthToken'];
 
   Map<String, String> toMap() => {
-        'githubToken': githubToken,
-        'curseforgeApiKey': curseforgeApiKey,
-        'itchApiKey': itchApiKey,
-        'modrinthToken': modrinthToken,
-      };
+    'githubToken': githubToken,
+    'curseforgeApiKey': curseforgeApiKey,
+    'itchApiKey': itchApiKey,
+    'modrinthToken': modrinthToken,
+  };
 
   factory Credentials.fromMap(Map<String, String?> m) => Credentials(
-        githubToken: (m['githubToken'] ?? '').trim(),
-        curseforgeApiKey: (m['curseforgeApiKey'] ?? '').trim(),
-        itchApiKey: (m['itchApiKey'] ?? '').trim(),
-        modrinthToken: (m['modrinthToken'] ?? '').trim(),
-      );
+    githubToken: (m['githubToken'] ?? '').trim(),
+    curseforgeApiKey: (m['curseforgeApiKey'] ?? '').trim(),
+    itchApiKey: (m['itchApiKey'] ?? '').trim(),
+    modrinthToken: (m['modrinthToken'] ?? '').trim(),
+  );
 
   Credentials copyWith({String? githubToken, String? curseforgeApiKey, String? itchApiKey, String? modrinthToken}) =>
       Credentials(
@@ -86,8 +81,9 @@ bool mayReceiveCredential(String service, Uri uri) =>
     uri.scheme == 'https' && (credentialHosts[service]?.contains(uri.host.toLowerCase()) ?? false);
 
 final _secretParam = RegExp(
-    r'((?:api_key|apikey|access_token|token|key|password|client_secret|download_key_id)=)[^&\s#]+',
-    caseSensitive: false);
+  r'((?:api_key|apikey|access_token|token|key|password|client_secret|download_key_id)=)[^&\s#]+',
+  caseSensitive: false,
+);
 final _bearer = RegExp(r'(Bearer\s+)[A-Za-z0-9._~+/=-]+', caseSensitive: false);
 final _ghToken = RegExp(r'\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b');
 

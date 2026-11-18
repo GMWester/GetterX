@@ -15,17 +15,15 @@ class AppConfig {
   AppConfig(this.settings, this.sources);
 
   Map<String, dynamic> toJson() => {
-        'format': 1,
-        'settings': settings.toJson(),
-        'sources': sources.map((s) => s.toJson()).toList(),
-      };
+    'format': 1,
+    'settings': settings.toJson(),
+    'sources': sources.map((s) => s.toJson()).toList(),
+  };
 
   factory AppConfig.fromJson(Map<String, dynamic> j) => AppConfig(
-        AppSettings.fromJson((j['settings'] as Map? ?? {}).cast()),
-        (j['sources'] as List? ?? const [])
-            .map((e) => TrackedSource.fromJson((e as Map).cast()))
-            .toList(),
-      );
+    AppSettings.fromJson((j['settings'] as Map? ?? {}).cast()),
+    (j['sources'] as List? ?? const []).map((e) => TrackedSource.fromJson((e as Map).cast())).toList(),
+  );
 }
 
 class LogEntry {
@@ -34,18 +32,21 @@ class LogEntry {
   final String message;
   final String? sourceId;
   LogEntry(this.level, String message, {this.sourceId, DateTime? time})
-      : message = redact(message),
-        time = time ?? DateTime.now();
+    : message = redact(message),
+      time = time ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
-        't': time.toIso8601String(),
-        'l': level,
-        'm': message,
-        if (sourceId != null) 's': sourceId,
-      };
+    't': time.toIso8601String(),
+    'l': level,
+    'm': message,
+    if (sourceId != null) 's': sourceId,
+  };
   factory LogEntry.fromJson(Map<String, dynamic> j) => LogEntry(
-      j['l'] as String? ?? 'info', j['m'] as String? ?? '',
-      sourceId: j['s'] as String?, time: DateTime.tryParse(j['t'] as String? ?? ''));
+    j['l'] as String? ?? 'info',
+    j['m'] as String? ?? '',
+    sourceId: j['s'] as String?,
+    time: DateTime.tryParse(j['t'] as String? ?? ''),
+  );
 }
 
 class ConfigStore {
@@ -60,8 +61,7 @@ class ConfigStore {
   AppConfig _read() {
     if (!_file.existsSync()) return AppConfig(AppSettings(), []);
     try {
-      return AppConfig.fromJson(
-          (jsonDecode(_file.readAsStringSync()) as Map).cast());
+      return AppConfig.fromJson((jsonDecode(_file.readAsStringSync()) as Map).cast());
     } catch (_) {
       final bak = File('${_file.path}.bak');
       if (bak.existsSync()) {
@@ -83,8 +83,7 @@ class ConfigStore {
   Future<void> _write(AppConfig c) async {
     await dataDir.create(recursive: true);
     final tmp = File('${_file.path}.tmp');
-    await tmp.writeAsString(const JsonEncoder.withIndent('  ').convert(c.toJson()),
-        flush: true);
+    await tmp.writeAsString(const JsonEncoder.withIndent('  ').convert(c.toJson()), flush: true);
     if (_file.existsSync()) {
       try {
         await _file.copy('${_file.path}.bak');
@@ -125,8 +124,7 @@ class ConfigStore {
 
   Future<void> log(LogEntry e) async {
     try {
-      await _logFile.writeAsString('${jsonEncode(e.toJson())}\n',
-          mode: FileMode.append, flush: true);
+      await _logFile.writeAsString('${jsonEncode(e.toJson())}\n', mode: FileMode.append, flush: true);
       if (_logFile.lengthSync() > 512 * 1024) {
         final lines = _logFile.readAsLinesSync();
         await _logFile.writeAsString('${lines.skip(lines.length - 1000).join('\n')}\n');

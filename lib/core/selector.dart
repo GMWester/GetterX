@@ -25,8 +25,7 @@ class SyncPlan {
   final List<DownloadRecord> archive;
   final DateTime? newBaseline;
   final String? newestVersion;
-  const SyncPlan(this.downloads, this.delete, this.archive,
-      {this.newBaseline, this.newestVersion});
+  const SyncPlan(this.downloads, this.delete, this.archive, {this.newBaseline, this.newestVersion});
 
   bool get isEmpty => downloads.isEmpty && delete.isEmpty && archive.isEmpty;
 }
@@ -36,10 +35,10 @@ bool isArchivedSlot(String slot) => slot.contains(archivedMarker);
 String baseSlot(String slot) => slot.split(archivedMarker).first;
 
 int _stability(ReleaseChannel c) => switch (c) {
-      ReleaseChannel.release => 0,
-      ReleaseChannel.beta => 1,
-      ReleaseChannel.alpha => 2,
-    };
+  ReleaseChannel.release => 0,
+  ReleaseChannel.beta => 1,
+  ReleaseChannel.alpha => 2,
+};
 
 /// Newest first; releases without a date keep API order after dated ones of equal rank.
 int compareNewest(RemoteRelease a, RemoteRelease b) {
@@ -70,14 +69,18 @@ List<RemoteFile> filterFiles(TrackedSource s, RemoteRelease r, PlatformInfo plat
     final re = RegExp(s.excludeFilesRegex, caseSensitive: false);
     files = files.where((f) => !re.hasMatch(f.name));
   }
+  if (s.fileTypes.isNotEmpty) {
+    files = files.where((f) => s.fileTypes.any((t) => f.name.toLowerCase().endsWith('.${t.toLowerCase()}')));
+  }
   var list = files.toList();
   if (!s.isMod && s.onlyPlatformFiles) {
     final binaries = list.where((f) => !f.isSourceArchive && f.platforms.isEmpty).toList();
     final keep = pickPlatformFiles(binaries.map((f) => f.name).toList(), platform).toSet();
     list = list
-        .where((f) =>
-            f.isSourceArchive ||
-            (f.platforms.isNotEmpty ? f.platforms.contains(platform.os) : keep.contains(f.name)))
+        .where(
+          (f) =>
+              f.isSourceArchive || (f.platforms.isNotEmpty ? f.platforms.contains(platform.os) : keep.contains(f.name)),
+        )
         .toList();
   }
   return list;
@@ -93,15 +96,15 @@ List<String> effectiveGameVersions(TrackedSource s, RemoteRelease r) {
   return out.toList();
 }
 
-SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases,
-    {PlatformInfo? platform, DateTime? now}) {
+SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases, {PlatformInfo? platform, DateTime? now}) {
   platform ??= PlatformInfo.current();
   final candidates = <RemoteRelease, List<RemoteFile>>{};
   final sorted = [...releases]..sort(compareNewest);
+  final versionRe = s.versionRegex.trim().isEmpty ? null : RegExp(s.versionRegex, caseSensitive: false);
   for (final r in sorted) {
     if (!s.channels.contains(r.channel)) continue;
-    if (s.loaders.isNotEmpty && r.loaders.isNotEmpty &&
-        !r.loaders.any((l) => s.loaders.contains(l))) {
+    if (versionRe != null && !versionRe.hasMatch(r.version) && !versionRe.hasMatch(r.title)) continue;
+    if (s.loaders.isNotEmpty && r.loaders.isNotEmpty && !r.loaders.any((l) => s.loaders.contains(l))) {
       continue;
     }
     final files = filterFiles(s, r, platform);
@@ -142,11 +145,11 @@ SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases,
         if (s.baseline == null) newBaseline = base ?? now ?? DateTime.now();
         final known = s.downloads.map((d) => d.releaseId).toSet();
         list = list
-            .where((r) =>
-                known.contains(r.id) ||
-                (r.publishedAt == null
-                    ? identical(r, newest)
-                    : base == null || !r.publishedAt!.isBefore(base)))
+            .where(
+              (r) =>
+                  known.contains(r.id) ||
+                  (r.publishedAt == null ? identical(r, newest) : base == null || !r.publishedAt!.isBefore(base)),
+            )
             .toList();
       }
       // Retention: how many release folders to keep.
@@ -172,12 +175,9 @@ SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases,
         allowedGames = allowedGames.intersection(want);
       }
       if (s.gameVersionLimit > 0) {
-        final releasesOnly = allowedGames.where(isReleaseGameVersion).toList()
-          ..sort((a, b) => compareVersions(b, a));
+        final releasesOnly = allowedGames.where(isReleaseGameVersion).toList()..sort((a, b) => compareVersions(b, a));
         final top = releasesOnly.take(s.gameVersionLimit).toSet();
-        allowedGames = allowedGames
-            .where((g) => top.contains(g) || !isReleaseGameVersion(g))
-            .toSet();
+        allowedGames = allowedGames.where((g) => top.contains(g) || !isReleaseGameVersion(g)).toSet();
       }
       for (final r in candidates.keys) {
         var games = effectiveGameVersions(s, r).where(allowedGames.contains).toList();
@@ -260,6 +260,40 @@ SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases,
     }
   }
 
-  return SyncPlan(downloads, delete, archive,
-      newBaseline: newBaseline, newestVersion: newest?.version);
+  return SyncPlan(downloads, delete, archive, newBaseline: newBaseline, newestVersion: newest?.version);
+}
+
+/// Extension of a file name ("tar.gz" aware), lower-case, without dot.
+String fileExtension(String name) {
+  final n = name.toLowerCase();
+  for (final double in ['tar.gz', 'tar.xz', 'tar.zst', 'tar.bz2']) {
+    if (n.endsWith('.$double')) return double;
+  }
+  final i = n.lastIndexOf('.');
+  return i < 0 || i == n.length - 1 ? '' : n.substring(i + 1);
+}
+
+/// Turns chosen file names into a regex that still matches them in future
+/// releases: stand-alone version numbers become wildcards, while things like
+/// `x64`, `arm64` or `win32` stay literal. e.g.
+/// `App-1.2.3-win-x64.exe` -> `^App-v?\d+(?:[._-]\d+)*-win-x64\.exe$`.
+String patternForFiles(Iterable<String> names) {
+  const wildcard = r'v?\d+(?:[._-]\d+)*';
+  final version = RegExp(r'(?<![A-Za-z0-9])v?\d+(?:[._-]\d+)*(?![A-Za-z0-9])');
+  final parts = <String>{};
+  for (final n in names) {
+    final buf = StringBuffer('^');
+    var last = 0;
+    for (final m in version.allMatches(n)) {
+      buf
+        ..write(RegExp.escape(n.substring(last, m.start)))
+        ..write(wildcard);
+      last = m.end;
+    }
+    buf
+      ..write(RegExp.escape(n.substring(last)))
+      ..write(r'$');
+    parts.add(buf.toString());
+  }
+  return parts.join('|');
 }

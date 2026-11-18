@@ -10,6 +10,7 @@ import 'package:getterx/core/selector.dart';
 import 'package:getterx/core/sources/curseforge.dart';
 import 'package:getterx/core/sources/itchio.dart';
 import 'package:getterx/core/sources/modrinth.dart';
+import 'package:getterx/core/sources/web.dart';
 import 'package:getterx/core/store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -18,32 +19,37 @@ import 'package:test/test.dart';
 
 const linux = PlatformInfo('linux', 'x64');
 
-Map<String, dynamic> mrVersion(String id, String loader, List<String> games,
-        String version, DateTime date, {String type = 'release'}) =>
+Map<String, dynamic> mrVersion(
+  String id,
+  String loader,
+  List<String> games,
+  String version,
+  DateTime date, {
+  String type = 'release',
+}) => {
+  'id': id,
+  'name': '$loader-$version',
+  'version_number': version,
+  'version_type': type,
+  'loaders': [loader],
+  'game_versions': games,
+  'date_published': date.toIso8601String(),
+  'files': [
     {
-      'id': id,
-      'name': '$loader-$version',
-      'version_number': version,
-      'version_type': type,
-      'loaders': [loader],
-      'game_versions': games,
-      'date_published': date.toIso8601String(),
-      'files': [
-        {
-          'filename': '${loader}_$version.jar',
-          'url': 'https://cdn.modrinth.com/data/x/versions/$id/${loader}_$version.jar',
-          'primary': true,
-          'size': 10,
-          'hashes': {'sha1': sha1.convert(utf8.encode('jar:$id')).toString()},
-        },
-        {
-          'filename': '${loader}_$version-sources.jar',
-          'url': 'https://cdn.modrinth.com/data/x/versions/$id/src.jar',
-          'primary': false,
-          'hashes': {},
-        }
-      ],
-    };
+      'filename': '${loader}_$version.jar',
+      'url': 'https://cdn.modrinth.com/data/x/versions/$id/${loader}_$version.jar',
+      'primary': true,
+      'size': 10,
+      'hashes': {'sha1': sha1.convert(utf8.encode('jar:$id')).toString()},
+    },
+    {
+      'filename': '${loader}_$version-sources.jar',
+      'url': 'https://cdn.modrinth.com/data/x/versions/$id/src.jar',
+      'primary': false,
+      'hashes': {},
+    },
+  ],
+};
 
 /// Mirrors the screenshot from the request (newest first).
 List<Map<String, dynamic>> screenshotVersions() {
@@ -54,16 +60,13 @@ List<Map<String, dynamic>> screenshotVersions() {
     for (final l in ['fabric', 'neoforge', 'forge'])
       mrVersion('${l}262', l, ['26.2'], 'MC26.2-v1.2.3', d2.add(const Duration(hours: 2))),
     for (final l in ['fabric', 'neoforge', 'forge'])
-      mrVersion('${l}261', l, ['26.1', '26.1.1', '26.1.2'], 'MC26.1-v1.1.3',
-          d2.add(const Duration(hours: 1))),
-    for (final l in ['fabric', 'neoforge', 'forge'])
-      mrVersion('${l}12111', l, ['1.21.11'], 'MC1.21.11-v1.0.3', d2),
+      mrVersion('${l}261', l, ['26.1', '26.1.1', '26.1.2'], 'MC26.1-v1.1.3', d2.add(const Duration(hours: 1))),
+    for (final l in ['fabric', 'neoforge', 'forge']) mrVersion('${l}12111', l, ['1.21.11'], 'MC1.21.11-v1.0.3', d2),
     mrVersion('fabric262old', 'fabric', ['26.2'], 'MC26.2-v1.2.2', d3),
   ];
 }
 
-TrackedSource modSource() => TrackedSource(
-    id: 'm', kind: SourceKind.modrinth, ref: 'examplemod', name: 'Example Mod');
+TrackedSource modSource() => TrackedSource(id: 'm', kind: SourceKind.modrinth, ref: 'examplemod', name: 'Example Mod');
 
 void main() {
   group('latest per loader & game version (screenshot scenario)', () {
@@ -95,14 +98,20 @@ void main() {
       final first = planSync(s, rel, platform: linux);
       s.downloads = [
         for (final d in first.downloads)
-          DownloadRecord(slot: d.slot, releaseId: d.release.id, version: d.release.version,
-              publishedAt: d.release.publishedAt, files: ['/x/${d.folder}/${d.files.first.name}'],
-              downloadedAt: DateTime.now()),
+          DownloadRecord(
+            slot: d.slot,
+            releaseId: d.release.id,
+            version: d.release.version,
+            publishedAt: d.release.publishedAt,
+            files: ['/x/${d.folder}/${d.files.first.name}'],
+            downloadedAt: DateTime.now(),
+          ),
       ];
       expect(planSync(s, rel, platform: linux).isEmpty, isTrue);
-      final updated = ModrinthSource.parseVersions(
-          [mrVersion('fabric264', 'fabric', ['26.3'], 'MC26.3-v1.3.1', DateTime.utc(2026, 11, 1)), ...screenshotVersions()],
-          'examplemod');
+      final updated = ModrinthSource.parseVersions([
+        mrVersion('fabric264', 'fabric', ['26.3'], 'MC26.3-v1.3.1', DateTime.utc(2026, 11, 1)),
+        ...screenshotVersions(),
+      ], 'examplemod');
       final plan = planSync(s, updated, platform: linux);
       expect(plan.downloads.single.release.id, 'fabric264');
       expect(plan.delete.single.releaseId, 'fabric263');
@@ -124,17 +133,32 @@ void main() {
 
     test('empty API result never deletes anything', () {
       final s = modSource()
-        ..downloads = [DownloadRecord(slot: 'slot:fabric|1', releaseId: 'z', version: '', publishedAt: null, files: ['/a'], downloadedAt: DateTime.now())];
+        ..downloads = [
+          DownloadRecord(
+            slot: 'slot:fabric|1',
+            releaseId: 'z',
+            version: '',
+            publishedAt: null,
+            files: ['/a'],
+            downloadedAt: DateTime.now(),
+          ),
+        ];
       expect(planSync(s, [], platform: linux).isEmpty, isTrue);
     });
   });
 
   group('GitHub modes', () {
     RemoteRelease gh(String id, DateTime d, {bool pre = false, List<String>? files}) => RemoteRelease(
-        id: id, version: 'v$id', title: id, publishedAt: d,
-        channel: pre ? ReleaseChannel.beta : ReleaseChannel.release,
-        files: [for (final f in files ?? ['app-$id-linux-x64.AppImage', 'app-$id.apk', 'app-$id-win-x64.exe'])
-          RemoteFile(name: f, urls: ['https://x/$f'])]);
+      id: id,
+      version: 'v$id',
+      title: id,
+      publishedAt: d,
+      channel: pre ? ReleaseChannel.beta : ReleaseChannel.release,
+      files: [
+        for (final f in files ?? ['app-$id-linux-x64.AppImage', 'app-$id.apk', 'app-$id-win-x64.exe'])
+          RemoteFile(name: f, urls: ['https://x/$f']),
+      ],
+    );
     final rels = [
       gh('3', DateTime.utc(2026, 3), pre: true),
       gh('2', DateTime.utc(2026, 2)),
@@ -149,21 +173,41 @@ void main() {
     });
 
     test('all releases downloads everything incl. prereleases when allowed', () {
-      final s = TrackedSource(id: 'g', kind: SourceKind.github, ref: 'a/b', name: 'B',
-          mode: TrackMode.allReleases, channels: {ReleaseChannel.release, ReleaseChannel.beta});
+      final s = TrackedSource(
+        id: 'g',
+        kind: SourceKind.github,
+        ref: 'a/b',
+        name: 'B',
+        mode: TrackMode.allReleases,
+        channels: {ReleaseChannel.release, ReleaseChannel.beta},
+      );
       final plan = planSync(s, rels, platform: linux);
       expect(plan.downloads.map((d) => d.release.id), ['3', '2', '1']);
       expect(plan.downloads.first.files.length, 3);
     });
 
     test('new releases: baseline, then only newer ones; keep or delete old', () {
-      final s = TrackedSource(id: 'g', kind: SourceKind.github, ref: 'a/b', name: 'B',
-          mode: TrackMode.newReleases, keepOld: true);
+      final s = TrackedSource(
+        id: 'g',
+        kind: SourceKind.github,
+        ref: 'a/b',
+        name: 'B',
+        mode: TrackMode.newReleases,
+        keepOld: true,
+      );
       final p1 = planSync(s, rels, platform: linux);
       expect(p1.downloads.single.release.id, '2');
       s.baseline = p1.newBaseline;
-      s.downloads = [DownloadRecord(slot: p1.downloads.single.slot, releaseId: '2', version: 'v2',
-          publishedAt: DateTime.utc(2026, 2), files: ['/f2'], downloadedAt: DateTime.now())];
+      s.downloads = [
+        DownloadRecord(
+          slot: p1.downloads.single.slot,
+          releaseId: '2',
+          version: 'v2',
+          publishedAt: DateTime.utc(2026, 2),
+          files: ['/f2'],
+          downloadedAt: DateTime.now(),
+        ),
+      ];
       final newer = [gh('5', DateTime.utc(2026, 5)), gh('4', DateTime.utc(2026, 4)), ...rels];
       final p2 = planSync(s, newer, platform: linux);
       expect(p2.downloads.map((d) => d.release.id), ['5', '4']);
@@ -177,22 +221,38 @@ void main() {
 
   group('platform matching', () {
     final names = [
-      'App-1.0-arm64-v8a.apk', 'App-1.0-armeabi-v7a.apk', 'App-1.0-x86_64.apk', 'App-1.0.apk',
-      'App-Setup-1.0-x64.exe', 'App-1.0-windows-arm64.zip', 'App-1.0-win-x64.zip',
-      'App-1.0-universal.dmg', 'App-1.0-x86_64.AppImage', 'App-1.0-aarch64.AppImage',
-      'app_1.0_amd64.deb', 'App-1.0-linux-x64.tar.gz', 'App-1.0-macos-x64.tar.gz',
-      'checksums.sha256', 'App-1.0.ipa', 'source.tar.gz',
+      'App-1.0-arm64-v8a.apk',
+      'App-1.0-armeabi-v7a.apk',
+      'App-1.0-x86_64.apk',
+      'App-1.0.apk',
+      'App-Setup-1.0-x64.exe',
+      'App-1.0-windows-arm64.zip',
+      'App-1.0-win-x64.zip',
+      'App-1.0-universal.dmg',
+      'App-1.0-x86_64.AppImage',
+      'App-1.0-aarch64.AppImage',
+      'app_1.0_amd64.deb',
+      'App-1.0-linux-x64.tar.gz',
+      'App-1.0-macos-x64.tar.gz',
+      'checksums.sha256',
+      'App-1.0.ipa',
+      'source.tar.gz',
     ];
     test('android arm64 prefers the native split', () {
       expect(pickPlatformFiles(names, const PlatformInfo('android', 'arm64')), ['App-1.0-arm64-v8a.apk']);
     });
     test('windows x64', () {
-      expect(pickPlatformFiles(names, const PlatformInfo('windows', 'x64')),
-          ['App-Setup-1.0-x64.exe', 'App-1.0-win-x64.zip']);
+      expect(pickPlatformFiles(names, const PlatformInfo('windows', 'x64')), [
+        'App-Setup-1.0-x64.exe',
+        'App-1.0-win-x64.zip',
+      ]);
     });
     test('linux x64', () {
-      expect(pickPlatformFiles(names, linux),
-          ['App-1.0-x86_64.AppImage', 'app_1.0_amd64.deb', 'App-1.0-linux-x64.tar.gz']);
+      expect(pickPlatformFiles(names, linux), [
+        'App-1.0-x86_64.AppImage',
+        'app_1.0_amd64.deb',
+        'App-1.0-linux-x64.tar.gz',
+      ]);
     });
     test('macos arm64', () {
       expect(pickPlatformFiles(names, const PlatformInfo('macos', 'arm64')), ['App-1.0-universal.dmg']);
@@ -212,7 +272,15 @@ void main() {
       expect('${parseSourceLink('cf:238222')}', 'curseforge:238222');
       expect('${parseSourceLink('https://someone.itch.io/cool-game')}', 'itchio:someone/cool-game');
       expect('${parseSourceLink('itch:123')}', 'itchio:123');
-      expect(parseSourceLink('https://example.com/x'), isNull);
+      expect('${parseSourceLink('https://example.com/x')}', 'web:https://example.com/x');
+      expect('${parseSourceLink('https://gitlab.com/group/sub/proj/-/releases')}', 'gitlab:gitlab.com/group/sub/proj');
+      expect('${parseSourceLink('https://codeberg.org/owner/repo/releases')}', 'forgejo:codeberg.org/owner/repo');
+      expect('${parseSourceLink('https://f-droid.org/en/packages/org.fdroid.fdroid/')}', 'fdroid:org.fdroid.fdroid');
+      expect(
+        '${parseSourceLink('https://git.example.org/a/b', forceKind: SourceKind.forgejo)}',
+        'forgejo:git.example.org/a/b',
+      );
+      expect(parseSourceLink('http://insecure.example/x'), isNull);
     });
   });
 
@@ -220,11 +288,18 @@ void main() {
     test('CurseForge splits loaders from game versions and builds CDN fallback', () {
       final r = CurseForgeSource.parseFiles([
         {
-          'id': 5123456, 'displayName': 'Mod 1.0 Fabric', 'fileName': 'mod 1.0.jar', 'releaseType': 1,
-          'fileDate': '2026-10-01T00:00:00Z', 'downloadUrl': null, 'fileLength': 5,
-          'hashes': [{'value': 'ABC', 'algo': 1}],
+          'id': 5123456,
+          'displayName': 'Mod 1.0 Fabric',
+          'fileName': 'mod 1.0.jar',
+          'releaseType': 1,
+          'fileDate': '2026-10-01T00:00:00Z',
+          'downloadUrl': null,
+          'fileLength': 5,
+          'hashes': [
+            {'value': 'ABC', 'algo': 1},
+          ],
           'gameVersions': ['1.21.11', 'Fabric', 'NeoForge', 'Client', 'Java 21', '26.1-Snapshot-3'],
-        }
+        },
       ], '1');
       expect(r.single.loaders, ['fabric', 'neoforge']);
       expect(r.single.gameVersions, ['1.21.11', '26.1-Snapshot-3']);
@@ -234,9 +309,16 @@ void main() {
 
     test('itch.io release id changes when an upload changes', () {
       List<Map<String, dynamic>> ups(String build) => [
-            {'id': 1, 'filename': 'game-win.zip', 'size': 3, 'traits': ['p_windows'], 'build_id': build, 'updated_at': '2026-10-01T10:00:00Z'},
-            {'id': 2, 'filename': 'game-linux.zip', 'size': 3, 'p_linux': true, 'updated_at': '2026-10-02T10:00:00Z'},
-          ];
+        {
+          'id': 1,
+          'filename': 'game-win.zip',
+          'size': 3,
+          'traits': ['p_windows'],
+          'build_id': build,
+          'updated_at': '2026-10-01T10:00:00Z',
+        },
+        {'id': 2, 'filename': 'game-linux.zip', 'size': 3, 'p_linux': true, 'updated_at': '2026-10-02T10:00:00Z'},
+      ];
       final a = ItchSource.buildRelease('a/b', ups('1'), apiBase: 'https://api.itch.io', apiKey: 'k')!;
       final b = ItchSource.buildRelease('a/b', ups('2'), apiBase: 'https://api.itch.io', apiKey: 'k')!;
       expect(a.id, isNot(b.id));
@@ -298,5 +380,60 @@ void main() {
     expect(reloaded.config.sources.single.downloadDir, custom);
     await tmp.delete(recursive: true);
   });
-}
 
+  group('file choice', () {
+    test('patternForFiles survives version bumps but keeps arch', () {
+      final re = RegExp(patternForFiles(['App-1.2.3-win-x64.exe', 'app_v2.0_amd64.deb']));
+      expect(re.hasMatch('App-1.10.0-win-x64.exe'), isTrue);
+      expect(re.hasMatch('App-1.10.0-win-x86.exe'), isFalse);
+      expect(re.hasMatch('app_v3.1_amd64.deb'), isTrue);
+      expect(re.hasMatch('App-1.10.0-win-x64.zip'), isFalse);
+    });
+    test('file types and version regex', () {
+      final s = TrackedSource(
+        id: 'g',
+        kind: SourceKind.github,
+        ref: 'a/b',
+        name: 'B',
+        mode: TrackMode.allReleases,
+        fileTypes: ['exe'],
+        versionRegex: r'^v2',
+      );
+      RemoteRelease r(String v) => RemoteRelease(
+        id: v,
+        version: v,
+        title: v,
+        publishedAt: DateTime.utc(2026),
+        channel: ReleaseChannel.release,
+        files: [
+          RemoteFile(name: 'a-$v.exe', urls: const ['https://x/a']),
+          RemoteFile(name: 'a-$v.zip', urls: const ['https://x/b']),
+        ],
+      );
+      final plan = planSync(s, [r('v2.1'), r('v1.9')], platform: linux);
+      expect(plan.downloads.single.release.version, 'v2.1');
+      expect(plan.downloads.single.files.map((f) => f.name), ['a-v2.1.exe']);
+      expect(fileExtension('x.tar.gz'), 'tar.gz');
+      expect(fileExtension('X.AppImage'), 'appimage');
+    });
+  });
+
+  test('website: groups links by version and picks the newest', () {
+    const html = '''
+      <a href="/dl/Tool-1.9.0-win-x64.exe">old</a>
+      <a href="/dl/Tool-1.10.2-win-x64.exe">Download for Windows</a>
+      <a href='https://cdn.example.com/Tool-1.10.2-linux-x64.AppImage?x=1&amp;y=2'>Linux</a>
+      <a href="/about">About</a> <a href="http://insecure/Tool-9.9.exe">bad</a>
+      <a href="Tool-latest.zip">nightly</a>''';
+    final s = TrackedSource(id: 'w', kind: SourceKind.web, ref: 'https://tool.example.com/downloads/', name: 'Tool');
+    final rel = WebSource.parsePage(s, Uri.parse(s.ref), html);
+    expect(rel.first.version, '1.10.2');
+    expect(rel.first.files.map((f) => f.urls.single), [
+      'https://tool.example.com/dl/Tool-1.10.2-win-x64.exe',
+      'https://cdn.example.com/Tool-1.10.2-linux-x64.AppImage?x=1&y=2',
+    ]);
+    expect(rel.map((r) => r.version), ['1.10.2', '1.9.0', 'unversioned']);
+    final plan = planSync(s..onlyPlatformFiles = true, rel, platform: linux);
+    expect(plan.downloads.single.files.single.name, 'Tool-1.10.2-linux-x64.AppImage');
+  });
+}

@@ -28,8 +28,10 @@ void main() {
     redactionValues
       ..clear()
       ..add('supersecretvalue');
-    final t = redact('GET https://api.itch.io/x?api_key=abc123&page=2 Authorization: Bearer ghp_aaaaaaaaaaaaaaaaaaaaaaaaaa '
-        'github_pat_11ABCDEFG0123456789_abcdefghij and supersecretvalue');
+    final t = redact(
+      'GET https://api.itch.io/x?api_key=abc123&page=2 Authorization: Bearer ghp_aaaaaaaaaaaaaaaaaaaaaaaaaa '
+      'github_pat_11ABCDEFG0123456789_abcdefghij and supersecretvalue',
+    );
     expect(t, isNot(contains('abc123')));
     expect(t, isNot(contains('ghp_')));
     expect(t, isNot(contains('github_pat_')));
@@ -61,18 +63,26 @@ void main() {
     });
     final tmp = await Directory.systemTemp.createTemp('gxsec');
     await Downloader(client).download(
-        const RemoteFile(name: 'a', urls: ['https://api.github.com/repos/o/r/releases/assets/1'],
-            headers: {'Authorization': 'Bearer secret'}),
-        File(p.join(tmp.path, 'a')));
+      const RemoteFile(
+        name: 'a',
+        urls: ['https://api.github.com/repos/o/r/releases/assets/1'],
+        headers: {'Authorization': 'Bearer secret'},
+      ),
+      File(p.join(tmp.path, 'a')),
+    );
     expect(seen['api.github.com'], 'Bearer secret');
     expect(seen['objects.githubusercontent.com'], isNull);
     await expectLater(
-        Downloader(client).download(const RemoteFile(name: 'b', urls: ['https://down.grade/x']), File(p.join(tmp.path, 'b'))),
-        throwsA(isA<SourceException>()));
+      Downloader(client)
+          .download(const RemoteFile(name: 'b', urls: ['https://down.grade/x']), File(p.join(tmp.path, 'b'))),
+      throwsA(isA<SourceException>()),
+    );
     expect(seen.containsKey('plain.example'), isFalse);
     await expectLater(
-        Downloader(client).download(const RemoteFile(name: 'c', urls: ['http://plain.example/x']), File(p.join(tmp.path, 'c'))),
-        throwsA(isA<SourceException>()));
+      Downloader(client)
+          .download(const RemoteFile(name: 'c', urls: ['http://plain.example/x']), File(p.join(tmp.path, 'c'))),
+      throwsA(isA<SourceException>()),
+    );
     await tmp.delete(recursive: true);
   });
 
@@ -80,19 +90,38 @@ void main() {
     final client = MockClient((req) async {
       expect(req.url.host, 'api.github.com');
       expect(req.headers['Authorization'], 'Bearer tok');
-      return http.Response(jsonEncode([
-        {
-          'id': 1, 'tag_name': 'v1', 'name': 'v1', 'draft': false, 'prerelease': false,
-          'published_at': '2026-01-01T00:00:00Z', 'zipball_url': 'https://evil.example/zip',
-          'assets': [
-            {'name': 'a.apk', 'url': 'https://api.github.com/repos/o/r/releases/assets/9', 'browser_download_url': 'https://github.com/o/r/releases/download/v1/a.apk', 'size': 1},
-            {'name': 'b.apk', 'url': 'https://evil.example/asset', 'browser_download_url': 'https://github.com/o/r/releases/download/v1/b.apk', 'size': 1},
-          ]
-        }
-      ]), 200);
+      return http.Response(
+        jsonEncode([
+          {
+            'id': 1,
+            'tag_name': 'v1',
+            'name': 'v1',
+            'draft': false,
+            'prerelease': false,
+            'published_at': '2026-01-01T00:00:00Z',
+            'zipball_url': 'https://evil.example/zip',
+            'assets': [
+              {
+                'name': 'a.apk',
+                'url': 'https://api.github.com/repos/o/r/releases/assets/9',
+                'browser_download_url': 'https://github.com/o/r/releases/download/v1/a.apk',
+                'size': 1,
+              },
+              {
+                'name': 'b.apk',
+                'url': 'https://evil.example/asset',
+                'browser_download_url': 'https://github.com/o/r/releases/download/v1/b.apk',
+                'size': 1,
+              },
+            ],
+          },
+        ]),
+        200,
+      );
     });
-    final rel = await GitHubSource(client, token: 'tok')
-        .fetchReleases(TrackedSource(id: 'x', kind: SourceKind.github, ref: 'o/r', name: 'r', includeSourceArchives: true));
+    final rel = await GitHubSource(client, token: 'tok').fetchReleases(
+      TrackedSource(id: 'x', kind: SourceKind.github, ref: 'o/r', name: 'r', includeSourceArchives: true),
+    );
     final files = rel.single.files;
     expect(files[0].headers['Authorization'], 'Bearer tok');
     expect(files[1].headers, isEmpty);
@@ -103,10 +132,19 @@ void main() {
   test('CurseForge key is not sent to a custom/proxy base URL', () async {
     final client = MockClient((req) async {
       expect(req.headers.containsKey('x-api-key'), isFalse);
-      return http.Response(jsonEncode({'data': [], 'pagination': {'totalCount': 0}}), 200);
+      return http.Response(
+        jsonEncode({
+          'data': [],
+          'pagination': {'totalCount': 0},
+        }),
+        200,
+      );
     });
-    await CurseForgeSource(client, apiKey: 'k', baseUrl: 'https://api.curse.tools/v1/cf')
-        .fetchReleases(TrackedSource(id: 'x', kind: SourceKind.curseforge, ref: '1', name: 'm'));
+    await CurseForgeSource(
+      client,
+      apiKey: 'k',
+      baseUrl: 'https://api.curse.tools/v1/cf',
+    ).fetchReleases(TrackedSource(id: 'x', kind: SourceKind.curseforge, ref: '1', name: 'm'));
   });
 
   test('remote file names cannot escape the download folder', () {

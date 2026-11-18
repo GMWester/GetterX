@@ -52,7 +52,24 @@ const _archWords = <String, List<String>>{
   'riscv64': ['riscv64'],
 };
 
-const _junkExt = ['.sha256', '.sha256sum', '.sha512', '.sha1', '.md5', '.sig', '.asc', '.minisig', '.pem', '.sbom', '.spdx', '.json', '.txt', '.blockmap', '.yml', '.yaml'];
+const _junkExt = [
+  '.sha256',
+  '.sha256sum',
+  '.sha512',
+  '.sha1',
+  '.md5',
+  '.sig',
+  '.asc',
+  '.minisig',
+  '.pem',
+  '.sbom',
+  '.spdx',
+  '.json',
+  '.txt',
+  '.blockmap',
+  '.yml',
+  '.yaml',
+];
 
 List<String> _tokens(String name) =>
     name.toLowerCase().split(RegExp(r'[^a-z0-9_]+|_(?![0-9])')).where((t) => t.isNotEmpty).toList();

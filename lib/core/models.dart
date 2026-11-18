@@ -2,7 +2,7 @@
 /// Pure Dart: must not import Flutter.
 library;
 
-enum SourceKind { github, modrinth, curseforge, itchio }
+enum SourceKind { github, modrinth, curseforge, itchio, gitlab, forgejo, fdroid, web }
 
 /// How a tracked source decides what to download.
 enum TrackMode {
@@ -23,19 +23,22 @@ enum TrackMode {
 enum ReleaseChannel { release, beta, alpha }
 
 String trackModeLabel(TrackMode m) => switch (m) {
-      TrackMode.latest => 'Latest only (auto-update)',
-      TrackMode.newReleases => 'Every new release from now on',
-      TrackMode.allReleases => 'Every release ever (full archive)',
-      TrackMode.latestPerLoaderAndGameVersion =>
-        'Latest per mod loader & game version',
-    };
+  TrackMode.latest => 'Latest only (auto-update)',
+  TrackMode.newReleases => 'Every new release from now on',
+  TrackMode.allReleases => 'Every release ever (full archive)',
+  TrackMode.latestPerLoaderAndGameVersion => 'Latest per mod loader & game version',
+};
 
 String sourceKindLabel(SourceKind k) => switch (k) {
-      SourceKind.github => 'GitHub',
-      SourceKind.modrinth => 'Modrinth',
-      SourceKind.curseforge => 'CurseForge',
-      SourceKind.itchio => 'itch.io',
-    };
+  SourceKind.github => 'GitHub',
+  SourceKind.modrinth => 'Modrinth',
+  SourceKind.curseforge => 'CurseForge',
+  SourceKind.itchio => 'itch.io',
+  SourceKind.gitlab => 'GitLab',
+  SourceKind.forgejo => 'Codeberg / Forgejo / Gitea',
+  SourceKind.fdroid => 'F-Droid',
+  SourceKind.web => 'Website',
+};
 
 class RemoteFile {
   final String name;
@@ -110,12 +113,7 @@ class ProjectInfo {
   final String? description;
   final String? iconUrl;
   final String? pageUrl;
-  const ProjectInfo(
-      {required this.id,
-      required this.name,
-      this.description,
-      this.iconUrl,
-      this.pageUrl});
+  const ProjectInfo({required this.id, required this.name, this.description, this.iconUrl, this.pageUrl});
 }
 
 /// One downloaded "slot" (a release folder, or a loader+game-version folder).
@@ -139,26 +137,25 @@ class DownloadRecord {
   });
 
   Map<String, dynamic> toJson() => {
-        'slot': slot,
-        'releaseId': releaseId,
-        'version': version,
-        'publishedAt': publishedAt?.toIso8601String(),
-        'files': files,
-        'downloadedAt': downloadedAt.toIso8601String(),
-      };
+    'slot': slot,
+    'releaseId': releaseId,
+    'version': version,
+    'publishedAt': publishedAt?.toIso8601String(),
+    'files': files,
+    'downloadedAt': downloadedAt.toIso8601String(),
+  };
 
   factory DownloadRecord.fromJson(Map<String, dynamic> j) => DownloadRecord(
-        slot: j['slot'] as String,
-        releaseId: j['releaseId'] as String,
-        version: j['version'] as String? ?? '',
-        publishedAt: _date(j['publishedAt']),
-        files: (j['files'] as List? ?? const []).cast<String>(),
-        downloadedAt: _date(j['downloadedAt']) ?? DateTime.now(),
-      );
+    slot: j['slot'] as String,
+    releaseId: j['releaseId'] as String,
+    version: j['version'] as String? ?? '',
+    publishedAt: _date(j['publishedAt']),
+    files: (j['files'] as List? ?? const []).cast<String>(),
+    downloadedAt: _date(j['downloadedAt']) ?? DateTime.now(),
+  );
 }
 
-DateTime? _date(Object? v) =>
-    v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
+DateTime? _date(Object? v) => v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
 
 class TrackedSource {
   String id;
@@ -185,6 +182,20 @@ class TrackedSource {
 
   /// Regex: files whose name matches are skipped.
   String excludeFilesRegex;
+
+  /// Only files with these extensions, lower-case without dot (empty = all).
+  /// e.g. ["exe"], ["jar"], ["apk"], ["tar.gz"].
+  List<String> fileTypes;
+
+  /// Regex on the release version / tag (empty = all), e.g. `^v2\.`.
+  String versionRegex;
+
+  /// Website sources: only links whose full URL matches (empty = any file link).
+  String linkRegex;
+
+  /// Website sources: regex whose first group extracts the version from a
+  /// link URL / text (empty = first number like 1.2.3 in the file name).
+  String versionExtractRegex;
 
   /// Only download files suited to the current OS / CPU (GitHub, "latest" mode).
   bool onlyPlatformFiles;
@@ -239,6 +250,10 @@ class TrackedSource {
     this.preferStable = true,
     this.includeFilesRegex = '',
     this.excludeFilesRegex = '',
+    List<String>? fileTypes,
+    this.versionRegex = '',
+    this.linkRegex = '',
+    this.versionExtractRegex = '',
     this.onlyPlatformFiles = false,
     this.includeSourceArchives = false,
     this.tagsFallback = true,
@@ -256,51 +271,54 @@ class TrackedSource {
     this.lastError,
     this.latestVersionSeen,
     List<DownloadRecord>? downloads,
-  })  : mode = mode ??
-            (kind == SourceKind.modrinth || kind == SourceKind.curseforge
-                ? TrackMode.latestPerLoaderAndGameVersion
-                : TrackMode.latest),
-        channels = channels ??
-            (kind == SourceKind.github
-                ? {ReleaseChannel.release}
-                : ReleaseChannel.values.toSet()),
-        loaders = loaders ?? [],
-        gameVersions = gameVersions ?? [],
-        downloads = downloads ?? [];
+  }) : mode =
+           mode ??
+           (kind == SourceKind.modrinth || kind == SourceKind.curseforge
+               ? TrackMode.latestPerLoaderAndGameVersion
+               : TrackMode.latest),
+       channels = channels ?? (kind == SourceKind.github ? {ReleaseChannel.release} : ReleaseChannel.values.toSet()),
+       loaders = loaders ?? [],
+       fileTypes = fileTypes ?? [],
+       gameVersions = gameVersions ?? [],
+       downloads = downloads ?? [];
 
   /// Minecraft-style sources with loaders / game versions.
   bool get isMod => kind == SourceKind.modrinth || kind == SourceKind.curseforge;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'kind': kind.name,
-        'ref': ref,
-        'name': name,
-        'enabled': enabled,
-        'mode': mode.name,
-        'downloadDir': downloadDir,
-        'channels': channels.map((c) => c.name).toList(),
-        'preferStable': preferStable,
-        'includeFilesRegex': includeFilesRegex,
-        'excludeFilesRegex': excludeFilesRegex,
-        'onlyPlatformFiles': onlyPlatformFiles,
-        'includeSourceArchives': includeSourceArchives,
-        'tagsFallback': tagsFallback,
-        'keepOld': keepOld,
-        'keepCount': keepCount,
-        'loaders': loaders,
-        'gameVersions': gameVersions,
-        'gameVersionLimit': gameVersionLimit,
-        'includeSnapshots': includeSnapshots,
-        'groupMinorVersions': groupMinorVersions,
-        'primaryFileOnly': primaryFileOnly,
-        'autoInstall': autoInstall,
-        'baseline': baseline?.toIso8601String(),
-        'lastChecked': lastChecked?.toIso8601String(),
-        'lastError': lastError,
-        'latestVersionSeen': latestVersionSeen,
-        'downloads': downloads.map((d) => d.toJson()).toList(),
-      };
+    'id': id,
+    'kind': kind.name,
+    'ref': ref,
+    'name': name,
+    'enabled': enabled,
+    'mode': mode.name,
+    'downloadDir': downloadDir,
+    'channels': channels.map((c) => c.name).toList(),
+    'preferStable': preferStable,
+    'includeFilesRegex': includeFilesRegex,
+    'excludeFilesRegex': excludeFilesRegex,
+    'fileTypes': fileTypes,
+    'versionRegex': versionRegex,
+    'linkRegex': linkRegex,
+    'versionExtractRegex': versionExtractRegex,
+    'onlyPlatformFiles': onlyPlatformFiles,
+    'includeSourceArchives': includeSourceArchives,
+    'tagsFallback': tagsFallback,
+    'keepOld': keepOld,
+    'keepCount': keepCount,
+    'loaders': loaders,
+    'gameVersions': gameVersions,
+    'gameVersionLimit': gameVersionLimit,
+    'includeSnapshots': includeSnapshots,
+    'groupMinorVersions': groupMinorVersions,
+    'primaryFileOnly': primaryFileOnly,
+    'autoInstall': autoInstall,
+    'baseline': baseline?.toIso8601String(),
+    'lastChecked': lastChecked?.toIso8601String(),
+    'lastError': lastError,
+    'latestVersionSeen': latestVersionSeen,
+    'downloads': downloads.map((d) => d.toJson()).toList(),
+  };
 
   factory TrackedSource.fromJson(Map<String, dynamic> j) {
     final kind = SourceKind.values.byName(j['kind'] as String);
@@ -319,6 +337,10 @@ class TrackedSource {
       preferStable: j['preferStable'] as bool? ?? true,
       includeFilesRegex: j['includeFilesRegex'] as String? ?? '',
       excludeFilesRegex: j['excludeFilesRegex'] as String? ?? '',
+      fileTypes: (j['fileTypes'] as List?)?.cast<String>(),
+      versionRegex: j['versionRegex'] as String? ?? '',
+      linkRegex: j['linkRegex'] as String? ?? '',
+      versionExtractRegex: j['versionExtractRegex'] as String? ?? '',
       onlyPlatformFiles: j['onlyPlatformFiles'] as bool? ?? false,
       includeSourceArchives: j['includeSourceArchives'] as bool? ?? false,
       tagsFallback: j['tagsFallback'] as bool? ?? true,
@@ -335,9 +357,7 @@ class TrackedSource {
       lastChecked: _date(j['lastChecked']),
       lastError: j['lastError'] as String?,
       latestVersionSeen: j['latestVersionSeen'] as String?,
-      downloads: (j['downloads'] as List? ?? const [])
-          .map((e) => DownloadRecord.fromJson((e as Map).cast()))
-          .toList(),
+      downloads: (j['downloads'] as List? ?? const []).map((e) => DownloadRecord.fromJson((e as Map).cast())).toList(),
     );
   }
 
@@ -372,6 +392,12 @@ class AppSettings {
   int checkIntervalMinutes;
   bool backgroundChecks;
   String themeMode; // system | light | dark
+
+  /// Look for new GetterX versions (shows an "Update" button).
+  bool checkAppUpdates;
+
+  /// Download and install GetterX updates automatically.
+  bool autoUpdateApp;
   int parallelDownloads;
 
   AppSettings({
@@ -384,32 +410,38 @@ class AppSettings {
     this.checkIntervalMinutes = 360,
     this.backgroundChecks = true,
     this.themeMode = 'system',
+    this.checkAppUpdates = true,
+    this.autoUpdateApp = false,
     this.parallelDownloads = 3,
   });
 
   Map<String, dynamic> toJson() => {
-        'downloadDir': downloadDir,
-        'githubClientId': githubClientId,
-        'githubUser': githubUser,
-        'itchUser': itchUser,
-        'modrinthUser': modrinthUser,
-        'curseforgeBaseUrl': curseforgeBaseUrl,
-        'checkIntervalMinutes': checkIntervalMinutes,
-        'backgroundChecks': backgroundChecks,
-        'themeMode': themeMode,
-        'parallelDownloads': parallelDownloads,
-      };
+    'downloadDir': downloadDir,
+    'githubClientId': githubClientId,
+    'githubUser': githubUser,
+    'itchUser': itchUser,
+    'modrinthUser': modrinthUser,
+    'curseforgeBaseUrl': curseforgeBaseUrl,
+    'checkIntervalMinutes': checkIntervalMinutes,
+    'backgroundChecks': backgroundChecks,
+    'themeMode': themeMode,
+    'checkAppUpdates': checkAppUpdates,
+    'autoUpdateApp': autoUpdateApp,
+    'parallelDownloads': parallelDownloads,
+  };
 
   factory AppSettings.fromJson(Map<String, dynamic> j) => AppSettings(
-        downloadDir: j['downloadDir'] as String? ?? '',
-        githubClientId: j['githubClientId'] as String? ?? '',
-        githubUser: j['githubUser'] as String? ?? '',
-        itchUser: j['itchUser'] as String? ?? '',
-        modrinthUser: j['modrinthUser'] as String? ?? '',
-        curseforgeBaseUrl: j['curseforgeBaseUrl'] as String? ?? '',
-        checkIntervalMinutes: j['checkIntervalMinutes'] as int? ?? 360,
-        backgroundChecks: j['backgroundChecks'] as bool? ?? true,
-        themeMode: j['themeMode'] as String? ?? 'system',
-        parallelDownloads: j['parallelDownloads'] as int? ?? 3,
-      );
+    downloadDir: j['downloadDir'] as String? ?? '',
+    githubClientId: j['githubClientId'] as String? ?? '',
+    githubUser: j['githubUser'] as String? ?? '',
+    itchUser: j['itchUser'] as String? ?? '',
+    modrinthUser: j['modrinthUser'] as String? ?? '',
+    curseforgeBaseUrl: j['curseforgeBaseUrl'] as String? ?? '',
+    checkIntervalMinutes: j['checkIntervalMinutes'] as int? ?? 360,
+    backgroundChecks: j['backgroundChecks'] as bool? ?? true,
+    themeMode: j['themeMode'] as String? ?? 'system',
+    checkAppUpdates: j['checkAppUpdates'] as bool? ?? true,
+    autoUpdateApp: j['autoUpdateApp'] as bool? ?? false,
+    parallelDownloads: j['parallelDownloads'] as int? ?? 3,
+  );
 }

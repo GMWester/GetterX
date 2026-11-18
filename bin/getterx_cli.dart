@@ -51,17 +51,20 @@ Future<void> main(List<String> argv) async {
   var code = 0;
   try {
     TrackedSource find(String q) => store.config.sources.firstWhere(
-        (s) => s.id == q || s.name.toLowerCase() == q.toLowerCase() || s.ref.toLowerCase() == q.toLowerCase(),
-        orElse: () => throw StateError('No source "$q"'));
+      (s) => s.id == q || s.name.toLowerCase() == q.toLowerCase() || s.ref.toLowerCase() == q.toLowerCase(),
+      orElse: () => throw StateError('No source "$q"'),
+    );
     switch (args.first) {
       case 'paths':
         stdout.writeln('data:      ${paths.dataDir.path}${paths.portable ? '  (portable)' : ''}');
         stdout.writeln('downloads: ${engine.downloadRoot}');
       case 'list':
         for (final s in store.config.sources) {
-          stdout.writeln('${s.enabled ? ' ' : '-'} ${s.name}  [${sourceKindLabel(s.kind)} ${s.ref}]  '
-              '${trackModeLabel(s.mode)}  latest=${s.latestVersionSeen ?? '?'}  '
-              'files=${s.downloads.expand((d) => d.files).length}  → ${engine.folderFor(s)}');
+          stdout.writeln(
+            '${s.enabled ? ' ' : '-'} ${s.name}  [${sourceKindLabel(s.kind)} ${s.ref}]  '
+            '${trackModeLabel(s.mode)}  latest=${s.latestVersionSeen ?? '?'}  '
+            'files=${s.downloads.expand((d) => d.files).length}  → ${engine.folderFor(s)}',
+          );
         }
       case 'add':
         if (args.length < 2) throw ArgumentError('add needs a link');
@@ -101,14 +104,14 @@ Future<void> main(List<String> argv) async {
         if (plan.isEmpty) stdout.writeln('Up to date');
       case 'check':
         final ids = args.length > 1 ? args.skip(1).map((q) => find(q).id).toList() : null;
-        final results = ids == null
-            ? await engine.checkAll()
-            : [for (final id in ids) await engine.check(id)];
+        final results = ids == null ? await engine.checkAll() : [for (final id in ids) await engine.check(id)];
         for (final r in results) {
           final news = r.downloaded.map((d) => d.version).toSet();
-          stdout.writeln('${r.ok ? 'OK ' : 'ERR'} ${r.source.name}: '
-              '${news.isEmpty ? 'up to date' : 'downloaded ${news.join(', ')}'}'
-              '${r.deletedFiles > 0 ? ', removed ${r.deletedFiles} old files' : ''}');
+          stdout.writeln(
+            '${r.ok ? 'OK ' : 'ERR'} ${r.source.name}: '
+            '${news.isEmpty ? 'up to date' : 'downloaded ${news.join(', ')}'}'
+            '${r.deletedFiles > 0 ? ', removed ${r.deletedFiles} old files' : ''}',
+          );
           for (final e in r.errors) {
             stderr.writeln('    $e');
           }

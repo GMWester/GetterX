@@ -37,7 +37,8 @@ class ItchSource implements ReleaseSource {
   void _requireKey() {
     if (apiKey.isEmpty || !mayReceiveCredential('itchio', Uri.parse(apiBase))) {
       throw SourceException(
-          'itch.io needs an API key: create one at itch.io/user/settings/api-keys and add it in Settings.');
+        'itch.io needs an API key: create one at itch.io/user/settings/api-keys and add it in Settings.',
+      );
     }
   }
 
@@ -45,20 +46,15 @@ class ItchSource implements ReleaseSource {
   Future<Map<String, dynamic>> _gameData(String ref) async {
     if (int.tryParse(ref) != null) {
       _requireKey();
-      final j = await getJson(client, _api('/games/$ref'), headers: _headers)
-          as Map<String, dynamic>;
+      final j = await getJson(client, _api('/games/$ref'), headers: _headers) as Map<String, dynamic>;
       return (j['game'] as Map? ?? j).cast();
     }
     final parts = ref.split('/');
     if (parts.length != 2) throw SourceException('Invalid itch.io reference "$ref"');
     // Every game page exposes a small public JSON document with its id.
-    final j = await getJson(
-            client, Uri.parse('https://${parts[0]}.itch.io/${parts[1]}/data.json'))
-        as Map<String, dynamic>;
-    return {
-      ...j,
-      'url': 'https://${parts[0]}.itch.io/${parts[1]}',
-    };
+    final j =
+        await getJson(client, Uri.parse('https://${parts[0]}.itch.io/${parts[1]}/data.json')) as Map<String, dynamic>;
+    return {...j, 'url': 'https://${parts[0]}.itch.io/${parts[1]}'};
   }
 
   @override
@@ -76,8 +72,11 @@ class ItchSource implements ReleaseSource {
 
   Future<int?> _ownedDownloadKey(String gameId) async {
     for (var page = 1; page <= 50; page++) {
-      final j = await getJson(client, _api('/profile/owned-keys', {'page': '$page'}),
-          headers: _headers) as Map<String, dynamic>;
+      final j = await getJson(
+        client,
+        _api('/profile/owned-keys', {'page': '$page'}),
+        headers: _headers,
+      ) as Map<String, dynamic>;
       final keys = (j['owned_keys'] as List? ?? const []).cast<Map>();
       for (final k in keys) {
         if ('${k['game_id']}' == gameId) return k['id'] as int?;
@@ -90,9 +89,7 @@ class ItchSource implements ReleaseSource {
   @override
   Future<List<RemoteRelease>> fetchReleases(TrackedSource source, {bool full = true}) async {
     _requireKey();
-    final gameId = int.tryParse(source.ref) != null
-        ? source.ref
-        : '${(await _gameData(source.ref))['id']}';
+    final gameId = int.tryParse(source.ref) != null ? source.ref : '${(await _gameData(source.ref))['id']}';
     int? downloadKey;
     List<Map<String, dynamic>> uploads;
     try {
@@ -114,16 +111,21 @@ class ItchSource implements ReleaseSource {
 
   Future<List<Map<String, dynamic>>> _uploads(String gameId, int? downloadKey) async {
     final j = await getJson(
-        client,
-        _api('/games/$gameId/uploads',
-            {if (downloadKey != null) 'download_key_id': '$downloadKey'}),
-        headers: _headers) as Map<String, dynamic>;
+      client,
+      _api('/games/$gameId/uploads', {if (downloadKey != null) 'download_key_id': '$downloadKey'}),
+      headers: _headers,
+    ) as Map<String, dynamic>;
     if (j['errors'] != null) throw SourceException('itch.io: ${j['errors']}');
     return (j['uploads'] as List? ?? const []).cast<Map<String, dynamic>>();
   }
 
-  static RemoteRelease? buildRelease(String ref, List<Map<String, dynamic>> uploads,
-      {required String apiBase, required String apiKey, int? downloadKeyId}) {
+  static RemoteRelease? buildRelease(
+    String ref,
+    List<Map<String, dynamic>> uploads, {
+    required String apiBase,
+    required String apiKey,
+    int? downloadKeyId,
+  }) {
     if (uploads.isEmpty) return null;
     DateTime? newest;
     final sig = StringBuffer();
@@ -144,28 +146,26 @@ class ItchSource implements ReleaseSource {
         if (traits.contains('p_osx')) 'macos',
         if (traits.contains('p_android')) 'android',
       };
-      final q = {
-        'api_key': apiKey,
-        if (downloadKeyId != null) 'download_key_id': '$downloadKeyId',
-      };
+      final q = {'api_key': apiKey, if (downloadKeyId != null) 'download_key_id': '$downloadKeyId'};
       final name = (u['filename'] as String?) ?? 'upload-${u['id']}';
-      files.add(RemoteFile(
-        name: name,
-        urls: [Uri.parse('$apiBase/uploads/${u['id']}/download').replace(queryParameters: q).toString()],
-        size: u['size'] as int?,
-        hashes: {
-          if (u['md5_hash'] is String && (u['md5_hash'] as String).isNotEmpty)
-            'md5': (u['md5_hash'] as String).toLowerCase(),
-        },
-        platforms: platforms,
-        // Demos / soundtracks are still "files"; filter with regex if unwanted.
-        primary: u['type'] == null || u['type'] == 'default',
-      ));
+      files.add(
+        RemoteFile(
+          name: name,
+          urls: [Uri.parse('$apiBase/uploads/${u['id']}/download').replace(queryParameters: q).toString()],
+          size: u['size'] as int?,
+          hashes: {
+            if (u['md5_hash'] is String && (u['md5_hash'] as String).isNotEmpty)
+              'md5': (u['md5_hash'] as String).toLowerCase(),
+          },
+          platforms: platforms,
+          // Demos / soundtracks are still "files"; filter with regex if unwanted.
+          primary: u['type'] == null || u['type'] == 'default',
+        ),
+      );
     }
     final id = sha1.convert(utf8.encode(sig.toString())).toString().substring(0, 16);
     final date = newest ?? DateTime.now().toUtc();
-    final version =
-        '${date.year}-${_pad2(date.month)}-${_pad2(date.day)}_${_pad2(date.hour)}${_pad2(date.minute)}';
+    final version = '${date.year}-${_pad2(date.month)}-${_pad2(date.day)}_${_pad2(date.hour)}${_pad2(date.minute)}';
     return RemoteRelease(
       id: id,
       version: version,
