@@ -24,6 +24,12 @@ Please open a private advisory: *Security → Report a vulnerability* on
 | CLI | The command-line tool never stores secrets; it only reads `GETTERX_*` environment variables. | `bin/getterx_cli.dart` |
 | Portable mode | Settings travel with the folder, credentials do not (they stay in the machine's credential store). | `paths.dart` |
 
+## Automatic installs
+
+* Off by default, per source. Android uses the system PackageInstaller: silent only where Android allows it (updates of apps GetterX installed, Android 12+); APKs whose signing certificate differs from the installed app, or that would downgrade it, are never installed automatically.
+* Desktop installers run only for sources where you enabled it, with arguments passed directly (no shell). Unknown `.exe` installers are opened normally instead of being run silently.
+* Optional VirusTotal lookup before installing: only the SHA-256 is sent, with your key, to `www.virustotal.com`; flagged files are not installed.
+
 ## Other hardening
 
 * **Path traversal**: remote file names are sanitised and every destination is checked to stay inside the source's folder (tested with `../`, absolute, Windows device names).

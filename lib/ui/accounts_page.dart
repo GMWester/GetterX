@@ -181,6 +181,35 @@ class AccountsPage extends StatelessWidget {
                 ],
                 onSignOut: () => c.setCredentials(c.credentials.copyWith(curseforgeApiKey: '')),
               ),
+              _ServiceCard(
+                icon: Icons.security,
+                title: 'VirusTotal (optional)',
+                purpose:
+                    'Before installing anything automatically, GetterX asks VirusTotal whether the file is known '
+                    'to be malicious. Only the file\'s fingerprint (SHA-256) is sent, never the file. Flagged files are not installed.',
+                signedInAs: cr.virustotalKey.isEmpty ? null : 'API key saved',
+                actions: [
+                  OutlinedButton(
+                    onPressed: () => _pasteToken(
+                      context,
+                      title: 'VirusTotal API key',
+                      help: 'Free: virustotal.com → sign up → your profile → API key.',
+                      helpUrl: 'https://www.virustotal.com/gui/my-apikey',
+                      validate: (t) async {
+                        final r = await c.client.get(
+                          Uri.parse('https://www.virustotal.com/api/v3/users/me'),
+                          headers: {'x-apikey': t},
+                        );
+                        if (r.statusCode == 401) throw Exception('key not accepted');
+                        return 'ok';
+                      },
+                      save: (t, _) => c.setCredentials(c.credentials.copyWith(virustotalKey: t)),
+                    ),
+                    child: const Text('Use an API key'),
+                  ),
+                ],
+                onSignOut: () => c.setCredentials(c.credentials.copyWith(virustotalKey: '')),
+              ),
             ],
           ),
         );

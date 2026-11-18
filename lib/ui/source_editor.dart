@@ -108,6 +108,8 @@ class SourceEditor extends StatefulWidget {
 class _SourceEditorState extends State<SourceEditor> {
   late final TrackedSource s = widget.initial.copy();
   late final name = TextEditingController(text: s.name);
+  late final packageId = TextEditingController(text: s.packageId ?? '');
+  late final newCategory = TextEditingController();
   late final dir = TextEditingController(text: s.downloadDir);
   late final include = TextEditingController(text: s.includeFilesRegex);
   late final exclude = TextEditingController(text: s.excludeFilesRegex);
@@ -150,6 +152,7 @@ class _SourceEditorState extends State<SourceEditor> {
     }
     s
       ..name = name.text.trim().isEmpty ? s.name : name.text.trim()
+      ..packageId = packageId.text.trim().isEmpty ? null : packageId.text.trim()
       ..downloadDir = dir.text.trim()
       ..includeFilesRegex = include.text.trim()
       ..excludeFilesRegex = exclude.text.trim()
@@ -270,6 +273,35 @@ class _SourceEditorState extends State<SourceEditor> {
                   controller: name,
                   decoration: const InputDecoration(labelText: 'Name'),
                   onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SectionTitle('Folders (categories)'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final cat in {...widget.c.allCategories, ...s.categories})
+                      FilterChip(
+                        label: Text(cat),
+                        selected: s.categories.contains(cat),
+                        onSelected: (v) => setState(() => v ? s.categories.add(cat) : s.categories.remove(cat)),
+                      ),
+                    SizedBox(
+                      width: 170,
+                      child: TextField(
+                        controller: newCategory,
+                        decoration: const InputDecoration(isDense: true, hintText: '+ new folder'),
+                        onSubmitted: (v) => setState(() {
+                          final t = v.trim();
+                          if (t.isNotEmpty && !s.categories.contains(t)) s.categories.add(t);
+                          newCategory.clear();
+                        }),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SectionTitle('Download folder'),
@@ -558,17 +590,35 @@ class _SourceEditorState extends State<SourceEditor> {
                   ],
                 ),
               ),
+              const SectionTitle('Installing'),
+              SwitchListTile(
+                value: s.autoInstall,
+                onChanged: s.mode == TrackMode.trackOnly ? null : (v) => setState(() => s.autoInstall = v),
+                title: const Text('Install updates automatically'),
+                subtitle: Text(switch (Theme.of(context).platform) {
+                  TargetPlatform.android => 'APKs install by themselves on Android 12+ once GetterX has installed the app; otherwise you get a prompt.',
+                  TargetPlatform.iOS => 'Not possible on iOS (Apple does not allow it).',
+                  _ =>
+                    'Runs the downloaded installer silently (.msi/.exe/.msix, .dmg/.pkg, AppImage/.deb/.rpm/.flatpak). '
+                        'Only turn this on for sources you trust.',
+                }),
+              ),
               if (Theme.of(context).platform == TargetPlatform.android)
-                SwitchListTile(
-                  value: s.autoInstall,
-                  onChanged: s.mode == TrackMode.latest ? (v) => setState(() => s.autoInstall = v) : null,
-                  title: const Text('Open the installer for new APKs'),
-                  subtitle: const Text('Latest-only mode'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    controller: packageId,
+                    decoration: const InputDecoration(
+                      labelText: 'Android package id',
+                      helperText: 'Detected from the first downloaded APK; used to compare with the installed app.',
+                    ),
+                  ),
                 ),
               SwitchListTile(
                 value: s.enabled,
                 onChanged: (v) => setState(() => s.enabled = v),
                 title: const Text('Include in automatic checks'),
+                subtitle: const Text('Off = "on demand only": checked only when you tap Check'),
               ),
             ],
           ),

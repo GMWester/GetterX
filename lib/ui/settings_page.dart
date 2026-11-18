@@ -1,9 +1,16 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
+import 'package:getterx_core/backup.dart';
+import 'package:getterx_core/models.dart';
+import 'package:getterx_installer/getterx_installer.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../app/controller.dart';
+import '../app/notifications.dart';
 import '../app/self_update.dart';
+import '../app/theme.dart';
 import 'accounts_page.dart';
 import 'common.dart';
 
@@ -44,6 +51,124 @@ class _SettingsPageState extends State<SettingsPage> {
     final err = await c.saveSettings();
     if (mounted && err != null) toast(context, 'Background checks: $err');
     setState(() {});
+  }
+
+  Widget _swipePicker(String value, void Function(String) set) => DropdownButton<String>(
+    value: value,
+    items: const [
+      DropdownMenuItem(value: 'none', child: Text('Nothing')),
+      DropdownMenuItem(value: 'check', child: Text('Check now')),
+      DropdownMenuItem(value: 'install', child: Text('Install / update')),
+      DropdownMenuItem(value: 'pin', child: Text('Pin')),
+      DropdownMenuItem(value: 'edit', child: Text('Edit')),
+      DropdownMenuItem(value: 'open', child: Text('Open folder')),
+      DropdownMenuItem(value: 'delete', child: Text('Remove (with undo)')),
+    ],
+    onChanged: (v) {
+      set(v!);
+      _save();
+    },
+  );
+
+  Future<void> _export() async {
+    final text = c.exportConfig();
+    final dir = Directory(c.engine.downloadRoot);
+    final now = DateTime.now();
+    final name =
+        'GetterX-backup-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}.json';
+    try {
+      await dir.create(recursive: true);
+      final f = File('${dir.path}${Platform.pathSeparator}$name');
+      await f.writeAsString(text);
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) toast(context, 'Saved to ${f.path} (also copied to the clipboard)');
+    } catch (e) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) toast(context, 'Copied to the clipboard ($e)');
+    }
+  }
+
+  Future<void> _import() async {
+    String? text;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Import from'),
+        children: [
+          SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'file'), child: const Text('A file')),
+          SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'paste'), child: const Text('Pasted text')),
+        ],
+      ),
+    );
+    if (choice == 'file') {
+      final f = await FilePicker.pickFile(dialogTitle: 'Choose a backup');
+      if (f == null) return;
+      text = await f.xFile.readAsString();
+    } else if (choice == 'paste') {
+      final ctl = TextEditingController();
+      if (!mounted) return;
+      text = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Paste backup or links'),
+          content: TextField(controller: ctl, maxLines: 8, minLines: 4),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text), child: const Text('Next')),
+          ],
+        ),
+      );
+    }
+    if (text == null || text.trim().isEmpty || !mounted) return;
+    List<TrackedSource> found;
+    try {
+      found = parseBackup(text).sources;
+    } catch (_) {
+      // Not a GetterX backup: treat it as links (Obtainium/ObtainX exports work too).
+      found = [];
+      final links = linksFromText(text);
+      for (final l in links) {
+        try {
+          found.add(await c.resolveLink(l));
+        } catch (_) {}
+      }
+    }
+    if (!mounted) return;
+    if (found.isEmpty) {
+      toast(context, 'Nothing to import found');
+      return;
+    }
+    final picked = {for (final s in found) s.id: true};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: Text('Import ${picked.values.where((v) => v).length} of ${found.length}'),
+          content: SizedBox(
+            width: 480,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final s in found)
+                  CheckboxListTile(
+                    value: picked[s.id],
+                    onChanged: (v) => set(() => picked[s.id] = v!),
+                    title: Text(s.name),
+                    subtitle: Text('${sourceKindLabel(s.kind)} · ${s.ref}'),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Import')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final n = await c.importSources(found.where((s) => picked[s.id] == true).toList());
+    if (mounted) toast(context, 'Imported $n (already tracked ones were skipped)');
   }
 
   @override
@@ -205,6 +330,121 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
+              ),
+              SwitchListTile(
+                value: s.tintedBackgrounds,
+                onChanged: (v) {
+                  s.tintedBackgrounds = v;
+                  _save();
+                },
+                title: const Text('Tint backgrounds with the accent colour'),
+                subtitle: const Text('Off = neutral grey backgrounds'),
+              ),
+              SwitchListTile(
+                value: s.perAppColors,
+                onChanged: (v) {
+                  s.perAppColors = v;
+                  _save();
+                },
+                title: const Text('Colour each page from its icon'),
+              ),
+              ListTile(
+                title: const Text('Accent colour'),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.palette_outlined, size: 18),
+                        label: const Text('System'),
+                        selected: s.accentColor == 'system',
+                        onSelected: (_) {
+                          s.accentColor = 'system';
+                          _save();
+                        },
+                      ),
+                      for (final e in accentPresets.entries)
+                        Tooltip(
+                          message: e.value,
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {
+                              s.accentColor = e.key;
+                              _save();
+                            },
+                            child: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: parseAccent(e.key),
+                              child: s.accentColor == e.key
+                                  ? const Icon(Icons.check, size: 18, color: Colors.black)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      SizedBox(
+                        width: 110,
+                        child: TextField(
+                          decoration: const InputDecoration(isDense: true, hintText: '#hex', prefixText: '#'),
+                          onSubmitted: (v) {
+                            final hex = v.replaceAll('#', '').trim();
+                            if (RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(hex)) {
+                              s.accentColor = hex.toLowerCase();
+                              _save();
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SectionTitle('List'),
+              ListTile(title: const Text('Swipe right'), trailing: _swipePicker(s.swipeRight, (v) => s.swipeRight = v)),
+              ListTile(title: const Text('Swipe left'), trailing: _swipePicker(s.swipeLeft, (v) => s.swipeLeft = v)),
+              const SectionTitle('Notifications'),
+              SwitchListTile(
+                value: s.notifyUpdates,
+                onChanged: (v) async {
+                  s.notifyUpdates = v;
+                  if (v) await Notifier.requestPermission();
+                  _save();
+                },
+                title: const Text('Notify about new versions'),
+                subtitle: const Text('Installs and problems are always notified'),
+              ),
+              if (Platform.isAndroid) ...[
+                const SectionTitle('Installing apps'),
+                FutureBuilder<bool>(
+                  future: GetterxInstaller.canInstall(),
+                  builder: (context, snap) => ListTile(
+                    leading: Icon(snap.data == true ? Icons.verified_outlined : Icons.warning_amber),
+                    title: Text(snap.data == true ? 'GetterX may install apps' : 'Allow GetterX to install apps'),
+                    subtitle: const Text(
+                      'Needed for automatic updates. On Android 12+ updates of apps GetterX installed happen without a tap.',
+                    ),
+                    trailing: snap.data == true
+                        ? null
+                        : FilledButton.tonal(
+                            onPressed: GetterxInstaller.openInstallPermissionSettings,
+                            child: const Text('Allow'),
+                          ),
+                  ),
+                ),
+              ],
+              const SectionTitle('Backup'),
+              ListTile(
+                leading: const Icon(Icons.upload_file),
+                title: const Text('Export tracked sources and settings'),
+                subtitle: const Text('Logins are never included'),
+                onTap: _export,
+              ),
+              ListTile(
+                leading: const Icon(Icons.download),
+                title: const Text('Import…'),
+                subtitle: const Text('GetterX backup, Obtainium/ObtainX export, or a list of links'),
+                onTap: _import,
               ),
               ExpansionTile(
                 title: const Text('Advanced'),

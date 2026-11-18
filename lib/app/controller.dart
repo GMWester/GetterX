@@ -114,7 +114,13 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   InstallPipeline get _pipeline => InstallPipeline(store, client, engine.credentials, background: false);
 
+  /// Sources whose newest version changed during this app session.
+  final newVersionIds = <String>{};
+
   Future<void> _afterResults(List<CheckResult> results) async {
+    for (final r in results) {
+      if (r.newVersion != null) newVersionIds.add(r.source.id);
+    }
     final outcomes = await _pipeline.handle(results);
     lastInstallOutcomes = outcomes;
     await refreshInstalled();
@@ -134,6 +140,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
   }
+
+  bool hasUpdate(TrackedSource s) => statusOf(s) == AppStatus.updateAvailable || newVersionIds.contains(s.id);
+
+  bool needsAttention(TrackedSource s) => s.lastError != null || s.installProblem != null;
 
   AppStatus statusOf(TrackedSource s) => statusFor(s, s.packageId == null ? null : installed[s.packageId]);
 
