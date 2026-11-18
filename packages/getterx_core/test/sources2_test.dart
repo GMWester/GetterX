@@ -185,8 +185,9 @@ void main() {
         );
       }
       if (u.contains('/v2/version_file/abc')) return http.Response(jsonEncode({'project_id': 'P1'}), 200);
-      if (u.contains('/v2/project/P1'))
+      if (u.contains('/v2/project/P1')) {
         return http.Response(jsonEncode({'slug': 'cool-mod', 'title': 'Cool Mod', 'project_type': 'mod'}), 200);
+      }
       return http.Response('{}', 404);
     });
     final s = TrackedSource(id: 'c', kind: SourceKind.curseforge, ref: '123', name: 'Cool Mod');

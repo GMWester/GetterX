@@ -15,6 +15,7 @@ import 'package:getterx_core/engine.dart';
 import 'package:getterx_core/store.dart';
 
 import 'app_paths.dart';
+import 'installs.dart';
 import 'secure_credentials.dart';
 
 const bgTaskName = 'io.github.gmwester.getterx.check';
@@ -31,7 +32,8 @@ Future<bool> runBackgroundCheck() async {
     // Keychain unavailable (e.g. locked): continue with public access only.
   }
   try {
-    await engine.checkAll();
+    final results = await engine.checkAll();
+    await InstallPipeline(store, engine.client, engine.credentials, background: true).handle(results);
     await store.log(LogEntry('info', 'Background check finished'));
     return true;
   } catch (e) {

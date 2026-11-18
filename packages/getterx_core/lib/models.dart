@@ -473,6 +473,22 @@ class AppSettings {
 
   /// Download and install GetterX updates automatically.
   bool autoUpdateApp;
+
+  /// 'system' (Material You / desktop accent) or an RGB hex such as '1bd96a'.
+  String accentColor;
+
+  /// Tint backgrounds with the accent colour (off = neutral grey backgrounds).
+  bool tintedBackgrounds;
+
+  /// Colour each source's page from its icon.
+  bool perAppColors;
+
+  /// Swipe actions in the list: none | check | pin | delete | edit | open | install.
+  String swipeLeft;
+  String swipeRight;
+
+  /// Show a notification when a background check finds new versions.
+  bool notifyUpdates;
   int parallelDownloads;
 
   AppSettings({
@@ -487,6 +503,12 @@ class AppSettings {
     this.themeMode = 'system',
     this.checkAppUpdates = true,
     this.autoUpdateApp = false,
+    this.accentColor = '1bd96a',
+    this.tintedBackgrounds = false,
+    this.perAppColors = true,
+    this.swipeLeft = 'delete',
+    this.swipeRight = 'check',
+    this.notifyUpdates = true,
     this.parallelDownloads = 3,
   });
 
@@ -502,6 +524,12 @@ class AppSettings {
     'themeMode': themeMode,
     'checkAppUpdates': checkAppUpdates,
     'autoUpdateApp': autoUpdateApp,
+    'accentColor': accentColor,
+    'tintedBackgrounds': tintedBackgrounds,
+    'perAppColors': perAppColors,
+    'swipeLeft': swipeLeft,
+    'swipeRight': swipeRight,
+    'notifyUpdates': notifyUpdates,
     'parallelDownloads': parallelDownloads,
   };
 
@@ -517,6 +545,12 @@ class AppSettings {
     themeMode: j['themeMode'] as String? ?? 'system',
     checkAppUpdates: j['checkAppUpdates'] as bool? ?? true,
     autoUpdateApp: j['autoUpdateApp'] as bool? ?? false,
+    accentColor: j['accentColor'] as String? ?? '1bd96a',
+    tintedBackgrounds: j['tintedBackgrounds'] as bool? ?? false,
+    perAppColors: j['perAppColors'] as bool? ?? true,
+    swipeLeft: j['swipeLeft'] as String? ?? 'delete',
+    swipeRight: j['swipeRight'] as String? ?? 'check',
+    notifyUpdates: j['notifyUpdates'] as bool? ?? true,
     parallelDownloads: j['parallelDownloads'] as int? ?? 3,
   );
 }
