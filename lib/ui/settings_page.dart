@@ -48,9 +48,8 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
     s.curseforgeBaseUrl = base;
-    final err = await c.saveSettings();
-    if (mounted && err != null) toast(context, 'Background checks: $err');
-    setState(() {});
+    await c.saveSettings();
+    if (mounted) setState(() {});
   }
 
   Widget _swipePicker(String value, void Function(String) set) => DropdownButton<String>(
@@ -222,26 +221,50 @@ class _SettingsPageState extends State<SettingsPage> {
                 trailing: DropdownButton<int>(
                   value: intervals.containsKey(s.checkIntervalMinutes) ? s.checkIntervalMinutes : 360,
                   items: [for (final e in intervals.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
-                  onChanged: (v) {
+                  onChanged: (v) async {
                     s.checkIntervalMinutes = v!;
-                    if (v == 0) s.backgroundChecks = false;
-                    _save();
+                    await _save();
+                    // Re-register only if background checks are on (new interval) or must be turned off.
+                    if (c.backgroundEnabled) {
+                      final err = await c.setBackground(v != 0);
+                      if (mounted && err != null) toast(this.context, 'Background checks: $err');
+                    }
                   },
                 ),
               ),
               SwitchListTile(
-                value: s.backgroundChecks,
+                value: c.backgroundEnabled,
                 onChanged: s.checkIntervalMinutes == 0
                     ? null
-                    : (v) {
-                        s.backgroundChecks = v;
-                        _save();
+                    : (v) async {
+                        final mobile = Platform.isAndroid || Platform.isIOS;
+                        if (v && !mobile) {
+                          final ok = await confirm(
+                            context,
+                            'Check while GetterX is closed?',
+                            'GetterX will add a scheduled task (${Platform.isWindows
+                                    ? 'Task Scheduler'
+                                    : Platform.isMacOS
+                                    ? 'launchd'
+                                    : 'systemd timer'}) '
+                                'that starts it without a window every ${s.checkIntervalMinutes} minutes.\n\n'
+                                'Some antivirus programs (e.g. Microsoft Defender) may warn about this, because unsigned '
+                                'programs that schedule themselves look like malware to their heuristics. '
+                                'If that happens, turn this off again or allow GetterX in your antivirus.',
+                            ok: 'Turn on',
+                          );
+                          if (!ok) return;
+                        }
+                        final err = await c.setBackground(v);
+                        if (mounted && err != null) toast(this.context, 'Background checks: $err');
+                        setState(() {});
                       },
                 title: const Text('Also check while GetterX is closed'),
                 subtitle: Text(
                   Platform.isAndroid || Platform.isIOS
                       ? 'Uses the system scheduler (timing decided by the OS, at least 15 min).'
-                      : 'Registers a scheduled task that runs GetterX without a window.',
+                      : 'Off by default. Adds a scheduled task that runs GetterX without a window. '
+                            'While GetterX is open it checks on schedule anyway.',
                 ),
               ),
               const SectionTitle('Accounts'),

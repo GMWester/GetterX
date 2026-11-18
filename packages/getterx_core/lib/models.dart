@@ -466,6 +466,11 @@ class AppSettings {
   /// Interval for automatic checks (in-app timer and OS background task).
   int checkIntervalMinutes;
   bool backgroundChecks;
+
+  /// Windows/macOS/Linux: run checks via an OS scheduled task while GetterX is
+  /// closed. Explicit opt-in (default off): antivirus heuristics can treat a
+  /// self-registered scheduled task of an unsigned program as "persistence".
+  bool desktopBackgroundChecks;
   String themeMode; // system | light | dark
 
   /// Look for new GetterX versions (shows an "Update" button).
@@ -500,6 +505,7 @@ class AppSettings {
     this.curseforgeBaseUrl = '',
     this.checkIntervalMinutes = 360,
     this.backgroundChecks = true,
+    this.desktopBackgroundChecks = false,
     this.themeMode = 'system',
     this.checkAppUpdates = true,
     this.autoUpdateApp = false,
@@ -521,6 +527,7 @@ class AppSettings {
     'curseforgeBaseUrl': curseforgeBaseUrl,
     'checkIntervalMinutes': checkIntervalMinutes,
     'backgroundChecks': backgroundChecks,
+    'desktopBackgroundChecks': desktopBackgroundChecks,
     'themeMode': themeMode,
     'checkAppUpdates': checkAppUpdates,
     'autoUpdateApp': autoUpdateApp,
@@ -542,6 +549,7 @@ class AppSettings {
     curseforgeBaseUrl: j['curseforgeBaseUrl'] as String? ?? '',
     checkIntervalMinutes: j['checkIntervalMinutes'] as int? ?? 360,
     backgroundChecks: j['backgroundChecks'] as bool? ?? true,
+    desktopBackgroundChecks: j['desktopBackgroundChecks'] as bool? ?? false,
     themeMode: j['themeMode'] as String? ?? 'system',
     checkAppUpdates: j['checkAppUpdates'] as bool? ?? true,
     autoUpdateApp: j['autoUpdateApp'] as bool? ?? false,

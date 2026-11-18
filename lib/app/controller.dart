@@ -290,10 +290,25 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   Future<String?> saveSettings() async {
     await store.saveSettings();
     _schedule();
-    final err = await configureBackground(
-      enabled: settings.backgroundChecks,
-      intervalMinutes: settings.checkIntervalMinutes,
-    );
+    notifyListeners();
+    return null;
+  }
+
+  bool get _mobile => Platform.isAndroid || Platform.isIOS;
+
+  /// Whether checks also run while GetterX is closed (per platform family).
+  bool get backgroundEnabled => _mobile ? settings.backgroundChecks : settings.desktopBackgroundChecks;
+
+  /// Turns background checks on/off. The OS scheduler entry is only touched
+  /// here, i.e. when the user changes this option or the interval.
+  Future<String?> setBackground(bool enabled) async {
+    if (_mobile) {
+      settings.backgroundChecks = enabled;
+    } else {
+      settings.desktopBackgroundChecks = enabled;
+    }
+    await store.saveSettings();
+    final err = await configureBackground(enabled: enabled, intervalMinutes: settings.checkIntervalMinutes);
     notifyListeners();
     return err;
   }

@@ -27,6 +27,10 @@ env:
 
 jobs:
   test:
+    # A pull request from a branch of this repository is already built by its
+    # push run; building it twice only doubles the queue for the (limited)
+    # macOS runners. Pull requests from forks are still built here.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
