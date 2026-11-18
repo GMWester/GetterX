@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app/app_paths.dart';
 import 'app/background.dart';
 import 'app/controller.dart';
+import 'app/theme.dart';
 import 'ui/home_page.dart';
 
 Future<void> main(List<String> args) async {
@@ -32,53 +34,36 @@ class GetterXApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: c,
-      builder: (context, _) {
-        const seed = Color(0xFF1BD96A);
-        final mode = c.settings.themeMode;
-        final dark = ThemeData(colorSchemeSeed: seed, brightness: Brightness.dark);
-        return MaterialApp(
-          title: 'GetterX',
-          debugShowCheckedModeBanner: false,
-          themeMode: switch (mode) {
-            'light' => ThemeMode.light,
-            'dark' || 'oled' => ThemeMode.dark,
-            _ => ThemeMode.system,
-          },
-          theme: ThemeData(colorSchemeSeed: seed, brightness: Brightness.light),
-          darkTheme: mode == 'oled' ? oledTheme(dark) : dark,
-          // Android TV remotes: the centre/select button activates the focused item.
-          shortcuts: {
-            ...WidgetsApp.defaultShortcuts,
-            const SingleActivator(LogicalKeyboardKey.select): const ActivateIntent(),
-          },
-          home: HomePage(c),
-        );
-      },
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) => ListenableBuilder(
+        listenable: c,
+        builder: (context, _) {
+          final st = c.settings;
+          final mode = st.themeMode;
+          final useSystem = st.accentColor == 'system';
+          final lightSeed = useSystem && lightDynamic != null ? lightDynamic.primary : parseAccent(st.accentColor);
+          final darkSeed = useSystem && darkDynamic != null ? darkDynamic.primary : parseAccent(st.accentColor);
+          final light = buildTheme(buildScheme(lightSeed, Brightness.light, tinted: st.tintedBackgrounds));
+          final dark = buildTheme(buildScheme(darkSeed, Brightness.dark, tinted: st.tintedBackgrounds));
+          return MaterialApp(
+            title: 'GetterX',
+            debugShowCheckedModeBanner: false,
+            themeMode: switch (mode) {
+              'light' => ThemeMode.light,
+              'dark' || 'oled' => ThemeMode.dark,
+              _ => ThemeMode.system,
+            },
+            theme: light,
+            darkTheme: mode == 'oled' ? oledTheme(dark) : dark,
+            // Android TV remotes: the centre/select button activates the focused item.
+            shortcuts: {
+              ...WidgetsApp.defaultShortcuts,
+              const SingleActivator(LogicalKeyboardKey.select): const ActivateIntent(),
+            },
+            home: HomePage(c),
+          );
+        },
+      ),
     );
   }
-}
-
-/// Pure-black theme for OLED screens (pixels off = less power, no glow).
-ThemeData oledTheme(ThemeData dark) {
-  final cs = dark.colorScheme.copyWith(
-    surface: Colors.black,
-    surfaceDim: Colors.black,
-    surfaceBright: const Color(0xFF121212),
-    surfaceContainerLowest: Colors.black,
-    surfaceContainerLow: const Color(0xFF050505),
-    surfaceContainer: const Color(0xFF0A0A0A),
-    surfaceContainerHigh: const Color(0xFF101010),
-    surfaceContainerHighest: const Color(0xFF161616),
-  );
-  return dark.copyWith(
-    colorScheme: cs,
-    scaffoldBackgroundColor: Colors.black,
-    canvasColor: Colors.black,
-    appBarTheme: dark.appBarTheme.copyWith(backgroundColor: Colors.black, surfaceTintColor: Colors.transparent),
-    cardTheme: dark.cardTheme.copyWith(color: const Color(0xFF0A0A0A), surfaceTintColor: Colors.transparent),
-    dialogTheme: dark.dialogTheme.copyWith(backgroundColor: const Color(0xFF0A0A0A)),
-    dividerColor: const Color(0xFF1E1E1E),
-  );
 }

@@ -12,15 +12,25 @@ class Credentials {
   final String itchApiKey;
   final String modrinthToken;
 
-  const Credentials({this.githubToken = '', this.curseforgeApiKey = '', this.itchApiKey = '', this.modrinthToken = ''});
+  /// Optional: checks downloaded installers against VirusTotal before auto-install.
+  final String virustotalKey;
 
-  static const keys = ['githubToken', 'curseforgeApiKey', 'itchApiKey', 'modrinthToken'];
+  const Credentials({
+    this.githubToken = '',
+    this.curseforgeApiKey = '',
+    this.itchApiKey = '',
+    this.modrinthToken = '',
+    this.virustotalKey = '',
+  });
+
+  static const keys = ['githubToken', 'curseforgeApiKey', 'itchApiKey', 'modrinthToken', 'virustotalKey'];
 
   Map<String, String> toMap() => {
     'githubToken': githubToken,
     'curseforgeApiKey': curseforgeApiKey,
     'itchApiKey': itchApiKey,
     'modrinthToken': modrinthToken,
+    'virustotalKey': virustotalKey,
   };
 
   factory Credentials.fromMap(Map<String, String?> m) => Credentials(
@@ -28,20 +38,28 @@ class Credentials {
     curseforgeApiKey: (m['curseforgeApiKey'] ?? '').trim(),
     itchApiKey: (m['itchApiKey'] ?? '').trim(),
     modrinthToken: (m['modrinthToken'] ?? '').trim(),
+    virustotalKey: (m['virustotalKey'] ?? '').trim(),
   );
 
-  Credentials copyWith({String? githubToken, String? curseforgeApiKey, String? itchApiKey, String? modrinthToken}) =>
-      Credentials(
-        githubToken: githubToken ?? this.githubToken,
-        curseforgeApiKey: curseforgeApiKey ?? this.curseforgeApiKey,
-        itchApiKey: itchApiKey ?? this.itchApiKey,
-        modrinthToken: modrinthToken ?? this.modrinthToken,
-      );
+  Credentials copyWith({
+    String? githubToken,
+    String? curseforgeApiKey,
+    String? itchApiKey,
+    String? modrinthToken,
+    String? virustotalKey,
+  }) => Credentials(
+    githubToken: githubToken ?? this.githubToken,
+    curseforgeApiKey: curseforgeApiKey ?? this.curseforgeApiKey,
+    itchApiKey: itchApiKey ?? this.itchApiKey,
+    modrinthToken: modrinthToken ?? this.modrinthToken,
+    virustotalKey: virustotalKey ?? this.virustotalKey,
+  );
 
   /// All non-empty secret values (used for redaction).
   Iterable<String> get values => toMap().values.where((v) => v.length >= 4);
 
-  /// CLI: GETTERX_GITHUB_TOKEN, GETTERX_CURSEFORGE_KEY, GETTERX_ITCH_KEY, GETTERX_MODRINTH_TOKEN.
+  /// CLI: GETTERX_GITHUB_TOKEN, GETTERX_CURSEFORGE_KEY, GETTERX_ITCH_KEY,
+  /// GETTERX_MODRINTH_TOKEN, GETTERX_VIRUSTOTAL_KEY.
   factory Credentials.fromEnvironment([Map<String, String>? env]) {
     final e = env ?? Platform.environment;
     return Credentials(
@@ -49,6 +67,7 @@ class Credentials {
       curseforgeApiKey: e['GETTERX_CURSEFORGE_KEY'] ?? '',
       itchApiKey: e['GETTERX_ITCH_KEY'] ?? '',
       modrinthToken: e['GETTERX_MODRINTH_TOKEN'] ?? '',
+      virustotalKey: e['GETTERX_VIRUSTOTAL_KEY'] ?? '',
     );
   }
 }
@@ -75,6 +94,7 @@ const credentialHosts = <String, Set<String>>{
   'curseforge': {'api.curseforge.com'},
   'itchio': {'api.itch.io'},
   'modrinth': {'api.modrinth.com'},
+  'virustotal': {'www.virustotal.com'},
 };
 
 bool mayReceiveCredential(String service, Uri uri) =>

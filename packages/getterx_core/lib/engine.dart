@@ -14,7 +14,13 @@ import 'models.dart';
 import 'platform_match.dart';
 import 'selector.dart';
 import 'sources/curseforge.dart';
+import 'sources/bitbucket.dart';
 import 'sources/fdroid.dart';
+import 'sources/hangar.dart';
+import 'sources/pypi.dart';
+import 'sources/sourceforge.dart';
+import 'sources/spigot.dart';
+import 'sources/thunderstore.dart';
 import 'sources/forgejo.dart';
 import 'sources/github.dart';
 import 'sources/gitlab.dart';
@@ -23,13 +29,17 @@ import 'sources/itchio.dart';
 import 'sources/modrinth.dart';
 import 'sources/source.dart';
 import 'store.dart';
+import 'tls.dart';
 
 class CheckResult {
   final TrackedSource source;
   final List<DownloadRecord> downloaded;
   final int deletedFiles;
   final List<String> errors;
-  CheckResult(this.source, this.downloaded, this.deletedFiles, this.errors);
+
+  /// The newest version changed since the previous check (for notifications).
+  final String? newVersion;
+  CheckResult(this.source, this.downloaded, this.deletedFiles, this.errors, {this.newVersion});
   bool get ok => errors.isEmpty;
 }
 
@@ -59,9 +69,15 @@ class Engine {
   }
 
   final _running = <String>{};
+  final _cancelled = <String>{};
+
+  /// Stops a running check/download of [sourceId] (partial files are removed).
+  void cancel(String sourceId) {
+    if (_running.contains(sourceId)) _cancelled.add(sourceId);
+  }
 
   Engine(this.store, {http.Client? client, PlatformInfo? platform, required this.defaultDownloadRoot})
-    : client = client ?? http.Client(),
+    : client = client ?? createHttpClient(),
       platform = platform ?? PlatformInfo.current();
 
   Stream<Progress> get progress => _progress.stream;
@@ -82,6 +98,13 @@ class Engine {
     SourceKind.gitlab => GitLabSource(client),
     SourceKind.forgejo => ForgejoSource(client),
     SourceKind.fdroid => FDroidSource(client),
+    SourceKind.izzyondroid => FDroidSource.izzy(client),
+    SourceKind.sourceforge => SourceForgeSource(client),
+    SourceKind.hangar => HangarSource(client),
+    SourceKind.spigot => SpigotSource(client),
+    SourceKind.thunderstore => ThunderstoreSource(client),
+    SourceKind.bitbucket => BitbucketSource(client),
+    SourceKind.pypi => PyPiSource(client),
     SourceKind.web => WebSource(client),
   };
 
@@ -97,7 +120,14 @@ class Engine {
       throw SourceException('Unrecognised link. Paste a GitHub, Modrinth or CurseForge URL.');
     }
     final info = await sourceFor(parsed.kind).fetchProject(parsed.ref);
-    final ref = const {SourceKind.github, SourceKind.gitlab, SourceKind.forgejo}.contains(parsed.kind)
+    final ref =
+        const {
+          SourceKind.github,
+          SourceKind.gitlab,
+          SourceKind.forgejo,
+          SourceKind.thunderstore,
+          SourceKind.bitbucket,
+        }.contains(parsed.kind)
         ? info.id
         : parsed.ref;
     return TrackedSource(
@@ -105,11 +135,16 @@ class Engine {
       kind: parsed.kind,
       ref: parsed.kind == SourceKind.curseforge || parsed.kind == SourceKind.itchio ? info.id : ref,
       name: info.name,
+      iconUrl: info.iconUrl,
+      pageUrl: info.pageUrl,
+      packageId: parsed.kind == SourceKind.fdroid || parsed.kind == SourceKind.izzyondroid ? parsed.ref : null,
       onlyPlatformFiles: const {
         SourceKind.github,
         SourceKind.gitlab,
         SourceKind.forgejo,
         SourceKind.itchio,
+        SourceKind.sourceforge,
+        SourceKind.bitbucket,
       }.contains(parsed.kind),
     );
   }
@@ -144,6 +179,7 @@ class Engine {
       return CheckResult(s, [], 0, ['Already running']);
     }
     final errors = <String>[];
+    String? newVersion;
     final newRecords = <DownloadRecord>[];
     var deleted = 0;
     try {
@@ -151,15 +187,23 @@ class Engine {
       final releases = await fetchReleases(s);
       final plan = planSync(s, releases, platform: platform);
       if (plan.newBaseline != null) s.baseline = plan.newBaseline;
-      if (plan.newestVersion != null) s.latestVersionSeen = plan.newestVersion;
+      if (plan.newestVersion != null) {
+        if (s.latestVersionSeen != null && s.latestVersionSeen != plan.newestVersion) newVersion = plan.newestVersion;
+        s.latestVersionSeen = plan.newestVersion;
+      }
       final root = folderFor(s);
 
       // Files already fetched in this run, so a release that fills several
       // slots (e.g. one jar for 1.21.10 and 1.21.11) is downloaded once.
       final fetched = <String, String>{};
       final failedSlots = <String>{};
+      final failedFiles = <String>{}; // same file needed by several slots: report once
       var n = 0;
       for (final pd in plan.downloads) {
+        if (_cancelled.contains(sourceId)) {
+          failedSlots.add(pd.slot);
+          continue;
+        }
         n++;
         final dir = p.join(root, pd.folder);
         final paths = <String>[];
@@ -171,6 +215,7 @@ class Engine {
               throw SourceException('Unsafe file path for ${rf.name}');
             }
             final key = '${pd.release.id}/${rf.name}';
+            if (failedFiles.contains(key)) throw const _AlreadyFailed();
             final prev = fetched[key];
             if (prev != null && p.equals(prev, dest.path)) {
               // same file
@@ -187,6 +232,7 @@ class Engine {
                 onProgress: (r, t) {
                   _emit(s, 'Downloading ${rf.name} ($n/${plan.downloads.length})', t == null || t == 0 ? null : r / t);
                 },
+                isCancelled: () => _cancelled.contains(sourceId),
               );
             }
             fetched[key] = dest.path;
@@ -208,8 +254,13 @@ class Engine {
               sourceId: s.id,
             ),
           );
+        } on _AlreadyFailed {
+          failedSlots.add(pd.slot);
         } catch (e) {
           failedSlots.add(pd.slot);
+          for (final rf in pd.files) {
+            failedFiles.add('${pd.release.id}/${rf.name}');
+          }
           errors.add(redact('${pd.release.version}: $e'));
           await store.log(LogEntry('error', '${s.name}: ${pd.release.version}: $e', sourceId: s.id));
           // Remove partial files of this slot that are not used elsewhere.
@@ -265,10 +316,11 @@ class Engine {
     } finally {
       s.lastChecked = DateTime.now();
       _running.remove(sourceId);
+      _cancelled.remove(sourceId);
       await store.saveSource(s);
       _emit(s, errors.isEmpty ? 'Up to date' : 'Finished with errors', 1);
     }
-    return CheckResult(s, newRecords, deleted, errors);
+    return CheckResult(s, newRecords, deleted, errors, newVersion: newVersion);
   }
 
   /// Deletes a source's downloaded files (used when removing a source).
@@ -306,4 +358,8 @@ class Engine {
     _progress.close();
     client.close();
   }
+}
+
+class _AlreadyFailed implements Exception {
+  const _AlreadyFailed();
 }

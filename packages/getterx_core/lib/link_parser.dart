@@ -18,7 +18,7 @@ ParsedLink? parseSourceLink(String input, {SourceKind? forceKind}) {
   var s = input.trim();
   if (s.isEmpty) return null;
   final prefix = RegExp(
-    r'^(gh|github|mr|modrinth|cf|curseforge|itch|itchio|gitlab|gl|forgejo|gitea|codeberg|fdroid|web|url):(.+)$',
+    r'^(gh|github|mr|modrinth|cf|curseforge|itch|itchio|gitlab|gl|forgejo|gitea|codeberg|fdroid|izzy|izzyondroid|sf|sourceforge|hangar|spigot|thunderstore|ts|bitbucket|bb|pypi|web|url):(.+)$',
     caseSensitive: false,
   ).firstMatch(s);
   if (prefix != null) {
@@ -30,6 +30,13 @@ ParsedLink? parseSourceLink(String input, {SourceKind? forceKind}) {
       'forgejo' || 'gitea' => SourceKind.forgejo,
       'codeberg' => SourceKind.forgejo,
       'fdroid' => SourceKind.fdroid,
+      'izzy' || 'izzyondroid' => SourceKind.izzyondroid,
+      'sf' || 'sourceforge' => SourceKind.sourceforge,
+      'hangar' => SourceKind.hangar,
+      'spigot' => SourceKind.spigot,
+      'thunderstore' || 'ts' => SourceKind.thunderstore,
+      'bitbucket' || 'bb' => SourceKind.bitbucket,
+      'pypi' => SourceKind.pypi,
       'web' || 'url' => SourceKind.web,
       _ => SourceKind.curseforge,
     };
@@ -41,7 +48,7 @@ ParsedLink? parseSourceLink(String input, {SourceKind? forceKind}) {
   }
   if (!s.contains('://')) {
     if (RegExp(
-      r'^(www\.)?((github|modrinth|curseforge|gitlab)\.com|codeberg\.org|f-droid\.org|[\w-]+\.itch\.io)/',
+      r'^(www\.)?((github|modrinth|curseforge|gitlab)\.com|codeberg\.org|f-droid\.org|sourceforge\.net|hangar\.papermc\.io|spigotmc\.org|thunderstore\.io|bitbucket\.org|pypi\.org|[\w-]+\.itch\.io)/',
       caseSensitive: false,
     ).hasMatch(s)) {
       s = 'https://$s';
@@ -66,6 +73,30 @@ ParsedLink? parseSourceLink(String input, {SourceKind? forceKind}) {
     }
     if (host == 'codeberg.org' && seg.length >= 2) {
       return _clean(SourceKind.forgejo, 'codeberg.org/${seg[0]}/${seg[1]}');
+    }
+    if (host == 'sourceforge.net' && seg.length >= 2 && seg[0] == 'projects') {
+      // /projects/<name>[/files/<folder...>]
+      final fi = seg.indexOf('files');
+      final folder = fi >= 0 ? seg.sublist(fi + 1).where((e) => e != 'download' && e != 'latest').join('/') : '';
+      return _clean(SourceKind.sourceforge, folder.isEmpty ? seg[1] : '${seg[1]}/$folder');
+    }
+    if (host == 'hangar.papermc.io' && seg.length >= 2) return _clean(SourceKind.hangar, seg[1]);
+    if (host == 'spigotmc.org' && seg.length >= 2 && seg[0] == 'resources') {
+      // /resources/<name>.<id>/
+      final id = RegExp(r'(\d+)$').firstMatch(seg[1])?[1];
+      if (id != null) return _clean(SourceKind.spigot, id);
+    }
+    if (host == 'thunderstore.io') {
+      // /c/<community>/p/<namespace>/<name>/  or /package/<namespace>/<name>/
+      final pi = seg.contains('p') ? seg.indexOf('p') : seg.indexOf('package');
+      if (pi >= 0 && pi + 2 < seg.length) return _clean(SourceKind.thunderstore, '${seg[pi + 1]}/${seg[pi + 2]}');
+    }
+    if (host == 'bitbucket.org' && seg.length >= 2) return _clean(SourceKind.bitbucket, '${seg[0]}/${seg[1]}');
+    if (host == 'pypi.org' && seg.length >= 2 && seg[0] == 'project') return _clean(SourceKind.pypi, seg[1]);
+    if (host == 'apt.izzysoft.de') {
+      // https://apt.izzysoft.de/fdroid/index/apk/<package>
+      final i = seg.indexOf('apk');
+      if (i >= 0 && i + 1 < seg.length) return _clean(SourceKind.izzyondroid, seg[i + 1]);
     }
     if (host == 'f-droid.org') {
       final i = seg.indexOf('packages');

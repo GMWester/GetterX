@@ -1,6 +1,6 @@
 # GetterX
 
-Automatically download and update releases from **GitHub, GitLab, Codeberg/Forgejo/Gitea, Modrinth, CurseForge, itch.io, F-Droid — and any website**.
+Automatically download, update and install releases from **GitHub, GitLab, Codeberg/Forgejo/Gitea, Bitbucket, SourceForge, Modrinth, CurseForge, Hangar (PaperMC), SpigotMC, Thunderstore, itch.io, F-Droid, IzzyOnDroid, PyPI — and any website**.
 Like Obtainium, but for every platform and with more modes:
 
 * **Latest only**: keep one up-to-date copy (auto-update apps; opens the APK installer on Android).
@@ -14,6 +14,20 @@ Per source you choose:
 * **which versions**: release / beta / alpha, only Fabric (or any loaders), only certain game versions or the newest *N*, a version/tag regex.
 
 Optional sign-in for private GitHub repos, purchased itch.io games and private Modrinth projects. See [SECURITY.md](SECURITY.md).
+
+### Installing updates automatically
+* **Android**: per source, "Install updates automatically". On Android 12+ updates of apps GetterX installed happen silently; otherwise Android asks once. GetterX reads the installed version and shows *Up to date / Update available / Installed version is newer / Not installed*, refuses APKs signed with a different key and never downgrades automatically.
+* **Windows / macOS / Linux** (opt-in per source): `.msi`, Inno/NSIS/WiX `.exe`, `.msix`; `.dmg`/`.zip` apps copied to Applications, `.pkg`; AppImage, `.deb`, `.rpm`, `.flatpak`.
+* Optional **VirusTotal** check (hash lookup only) before installing; flagged files are not installed.
+* Notifications for new versions, finished installs and problems.
+
+### Finding things
+* **Search** Modrinth, CurseForge, Hangar, SpigotMC, GitHub, GitLab and Codeberg at once — mods, modpacks, resource packs, shaders, data packs, plugins, repositories.
+* **Also available on**: each source shows where else the same project is published — CurseForge ↔ Modrinth (exact SHA-1 match where possible, otherwise slug + name), the project's GitHub/GitLab source code, F-Droid/IzzyOnDroid by package id. Track it there too, or switch over keeping settings and files.
+* **Import from device** (Android): finds F-Droid / IzzyOnDroid sources for your installed apps. **Import** GetterX backups, Obtainium/ObtainX exports or plain lists of links.
+
+### Organising
+Folders (categories) with filters and grouping, pin to top, *needs attention* first, search/sort, *track only* (notify, no download), *on demand only*, skip a version, stop a running download, configurable swipe actions with undo, two-pane layout on wide screens, icons with per-app colours, Material You / custom accent colour, neutral or tinted backgrounds, Light / Dark / OLED black.
 
 ## Platforms
 

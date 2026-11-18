@@ -104,6 +104,7 @@ SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases, {PlatformInfo? 
   for (final r in sorted) {
     if (!s.channels.contains(r.channel)) continue;
     if (versionRe != null && !versionRe.hasMatch(r.version) && !versionRe.hasMatch(r.title)) continue;
+    if (s.skippedVersion != null && r.version == s.skippedVersion) continue;
     if (s.loaders.isNotEmpty && r.loaders.isNotEmpty && !r.loaders.any((l) => s.loaders.contains(l))) {
       continue;
     }
@@ -134,6 +135,8 @@ SyncPlan planSync(TrackedSource s, List<RemoteRelease> releases, {PlatformInfo? 
   }
 
   switch (s.mode) {
+    case TrackMode.trackOnly:
+      return SyncPlan(const [], const [], const [], newestVersion: pickBest(candidates.keys)?.version);
     case TrackMode.latest:
       final best = pickBest(candidates.keys);
       if (best != null) wanted['latest'] = (best, sanitizeName(best.version));

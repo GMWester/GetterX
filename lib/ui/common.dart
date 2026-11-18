@@ -16,6 +16,13 @@ IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.gitlab => Icons.merge_type,
   SourceKind.forgejo => Icons.account_tree_outlined,
   SourceKind.fdroid => Icons.android,
+  SourceKind.izzyondroid => Icons.shop_two_outlined,
+  SourceKind.sourceforge => Icons.cloud_download_outlined,
+  SourceKind.hangar => Icons.dns_outlined,
+  SourceKind.spigot => Icons.power_outlined,
+  SourceKind.thunderstore => Icons.bolt,
+  SourceKind.bitbucket => Icons.inventory_2_outlined,
+  SourceKind.pypi => Icons.data_object,
   SourceKind.web => Icons.language,
 };
 
@@ -87,4 +94,11 @@ class SectionTitle extends StatelessWidget {
       style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary),
     ),
   );
+}
+
+/// First few lines of a long error text, for tooltips and list rows.
+String shortError(String text, {int lines = 4}) {
+  final all = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+  if (all.length <= lines) return all.join('\n');
+  return '${all.take(lines).join('\n')}\n… and ${all.length - lines} more (open the source for details)';
 }

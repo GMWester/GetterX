@@ -16,13 +16,19 @@ Please open a private advisory: *Security → Report a vulnerability* on
 | Password theft | itch.io passwords are sent once, over HTTPS, to `api.itch.io` and never stored; the field is cleared right after use. GitHub sign-in uses the OAuth device flow, so GitHub passwords never touch GetterX. 2FA (TOTP) is supported. | `packages/getterx_core/lib/auth.dart`, `lib/ui/accounts_page.dart` |
 | Token sent to the wrong server | Every credential is pinned to an exact HTTPS host: GitHub → `api.github.com`, Modrinth → `api.modrinth.com`, CurseForge → `api.curseforge.com` (never to a custom/mirror API URL), itch.io → `api.itch.io`. Asset URLs returned by an API get the token only if they point at that same host (tested with a malicious asset URL). Website / GitLab / Forgejo / F-Droid sources never receive any credential. | `credentials.dart` (`mayReceiveCredential`), sources |
 | Token leaked through redirects | Downloads follow redirects manually: headers with credentials are sent only to the original host and are dropped when GitHub/itch.io redirect to their CDNs (tested). | `downloader.dart` |
-| Downgrade / man-in-the-middle | HTTPS only for every API call and download, including after redirects (an `https → http` redirect is refused; tested). Certificates are always validated (no custom trust callbacks). Android blocks cleartext traffic. | `downloader.dart`, `source.dart`, manifest |
+| Downgrade / man-in-the-middle | HTTPS only for every API call and download, including after redirects (an `https → http` redirect is refused; tested). Certificates are always validated (no custom trust callbacks). If the operating system's root store rejects a site (common on Windows, which installs roots lazily), GetterX retries once against Mozilla's root list bundled with the app; an untrusted certificate still fails (tested). Android blocks cleartext traffic. | `downloader.dart`, `tls.dart`, `source.dart`, manifest |
 | Token leaked in logs / error messages | All errors, the activity log and "last error" texts go through `redact()`, which removes `api_key=`/`token=`/`Bearer …`/GitHub token patterns and the actual stored secret values (tested). | `credentials.dart` |
 | Phishing via device code | The sign-in dialog shows the code and warns to approve only a sign-in you started. Tokens are verified against the real service before being saved. | `accounts_page.dart` |
-| Over-privileged tokens | The UI recommends fine-grained, read-only tokens (GitHub "Contents: read" on selected repos, Modrinth "read projects/versions"). Note: the classic OAuth device flow needs the `repo` scope for private repos; prefer a fine-grained token if you want read-only. | `accounts_page.dart` |
+| Over-privileged tokens | The UI recommends fine-grained, read-only tokens (GitHub "Contents: read" on selected repos, Modrinth "read user data/projects/versions"). Note: the classic OAuth device flow needs the `repo` scope for private repos; prefer a fine-grained token if you want read-only. | `accounts_page.dart` |
 | Sign-out | Sign-out deletes the secret from the credential store. Revoke the token on the service as well (links shown). | `accounts_page.dart` |
 | CLI | The command-line tool never stores secrets; it only reads `GETTERX_*` environment variables. | `bin/getterx_cli.dart` |
 | Portable mode | Settings travel with the folder, credentials do not (they stay in the machine's credential store). | `paths.dart` |
+
+## Automatic installs
+
+* Off by default, per source. Android uses the system PackageInstaller: silent only where Android allows it (updates of apps GetterX installed, Android 12+); APKs whose signing certificate differs from the installed app, or that would downgrade it, are never installed automatically.
+* Desktop installers run only for sources where you enabled it, with arguments passed directly (no shell). Unknown `.exe` installers are opened normally instead of being run silently.
+* Optional VirusTotal lookup before installing: only the SHA-256 is sent, with your key, to `www.virustotal.com`; flagged files are not installed.
 
 ## Other hardening
 

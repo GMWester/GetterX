@@ -75,6 +75,7 @@ class Downloader {
     RemoteFile rf,
     File dest, {
     ProgressCallback? onProgress,
+    bool Function()? isCancelled,
     Map<String, String> headers = const {},
   }) async {
     await dest.parent.create(recursive: true);
@@ -95,6 +96,7 @@ class Downloader {
         var received = 0;
         try {
           await for (final chunk in res.stream) {
+            if (isCancelled?.call() == true) throw const DownloadCancelled();
             out.add(chunk);
             hasher?.add(chunk);
             received += chunk.length;
@@ -115,6 +117,12 @@ class Downloader {
         await part.rename(dest.path);
         return;
       } catch (e) {
+        if (e is DownloadCancelled) {
+          try {
+            if (part.existsSync()) await part.delete();
+          } catch (_) {}
+          rethrow;
+        }
         lastError = e;
         try {
           if (part.existsSync()) await part.delete();
@@ -123,4 +131,10 @@ class Downloader {
     }
     throw lastError ?? SourceException('No download URL for ${rf.name}');
   }
+}
+
+class DownloadCancelled implements Exception {
+  const DownloadCancelled();
+  @override
+  String toString() => 'Cancelled';
 }
