@@ -16,6 +16,13 @@ IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.gitlab => Icons.merge_type,
   SourceKind.forgejo => Icons.account_tree_outlined,
   SourceKind.fdroid => Icons.android,
+  SourceKind.izzyondroid => Icons.shop_two_outlined,
+  SourceKind.sourceforge => Icons.cloud_download_outlined,
+  SourceKind.hangar => Icons.dns_outlined,
+  SourceKind.spigot => Icons.power_outlined,
+  SourceKind.thunderstore => Icons.bolt,
+  SourceKind.bitbucket => Icons.inventory_2_outlined,
+  SourceKind.pypi => Icons.data_object,
   SourceKind.web => Icons.language,
 };
 

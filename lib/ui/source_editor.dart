@@ -131,6 +131,7 @@ class _SourceEditorState extends State<SourceEditor> {
     TrackMode.newReleases,
     if (s.kind != SourceKind.itchio) TrackMode.allReleases,
     if (s.isMod) TrackMode.latestPerLoaderAndGameVersion,
+    TrackMode.trackOnly,
   ];
 
   String? _regexError(String v) {
@@ -314,6 +315,7 @@ class _SourceEditorState extends State<SourceEditor> {
                           TrackMode.newReleases => 'Each new release goes into its own folder.',
                           TrackMode.allReleases => 'Downloads the complete history once, then every new release.',
                           TrackMode.latestPerLoaderAndGameVersion => 'e.g. Fabric + Forge + NeoForge builds for 26.3, 26.2, … — older builds for the same version are ignored.',
+                          TrackMode.trackOnly => 'Just tells you when a new version is out; nothing is downloaded.',
                         }),
                       ),
                   ],

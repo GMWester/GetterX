@@ -2,7 +2,23 @@
 /// Pure Dart: must not import Flutter.
 library;
 
-enum SourceKind { github, modrinth, curseforge, itchio, gitlab, forgejo, fdroid, web }
+enum SourceKind {
+  github,
+  modrinth,
+  curseforge,
+  itchio,
+  gitlab,
+  forgejo,
+  fdroid,
+  izzyondroid,
+  sourceforge,
+  hangar,
+  spigot,
+  thunderstore,
+  bitbucket,
+  pypi,
+  web,
+}
 
 /// How a tracked source decides what to download.
 enum TrackMode {
@@ -18,6 +34,9 @@ enum TrackMode {
 
   /// Mods: newest file for every (mod loader x game version) combination.
   latestPerLoaderAndGameVersion,
+
+  /// Only watch for new versions (notify), never download.
+  trackOnly,
 }
 
 enum ReleaseChannel { release, beta, alpha }
@@ -27,6 +46,7 @@ String trackModeLabel(TrackMode m) => switch (m) {
   TrackMode.newReleases => 'Every new release from now on',
   TrackMode.allReleases => 'Every release ever (full archive)',
   TrackMode.latestPerLoaderAndGameVersion => 'Latest per mod loader & game version',
+  TrackMode.trackOnly => 'Track only (notify, no download)',
 };
 
 String sourceKindLabel(SourceKind k) => switch (k) {
@@ -37,6 +57,13 @@ String sourceKindLabel(SourceKind k) => switch (k) {
   SourceKind.gitlab => 'GitLab',
   SourceKind.forgejo => 'Codeberg / Forgejo / Gitea',
   SourceKind.fdroid => 'F-Droid',
+  SourceKind.izzyondroid => 'IzzyOnDroid',
+  SourceKind.sourceforge => 'SourceForge',
+  SourceKind.hangar => 'Hangar (PaperMC)',
+  SourceKind.spigot => 'SpigotMC',
+  SourceKind.thunderstore => 'Thunderstore',
+  SourceKind.bitbucket => 'Bitbucket',
+  SourceKind.pypi => 'PyPI',
   SourceKind.web => 'Website',
 };
 
@@ -228,7 +255,8 @@ class TrackedSource {
   /// Modrinth/CurseForge: only primary files (skip sources/dev jars).
   bool primaryFileOnly;
 
-  /// Android: open the APK installer after download (latest mode).
+  /// Install new downloads automatically: Android APKs (silent on Android 12+
+  /// when GetterX installed the app before), desktop installers when enabled.
   bool autoInstall;
 
   /// Set on first check for [TrackMode.newReleases].
@@ -236,6 +264,25 @@ class TrackedSource {
   DateTime? lastChecked;
   String? lastError;
   String? latestVersionSeen;
+
+  /// Folders / categories this source belongs to.
+  List<String> categories;
+  bool pinned;
+
+  /// A release version the user chose to skip (the next one still shows up).
+  String? skippedVersion;
+  String? iconUrl;
+  String? pageUrl;
+
+  /// Android package id (auto-detected from downloaded APKs, editable).
+  String? packageId;
+
+  /// Version of the newest APK GetterX downloaded for this source.
+  String? apkVersionName;
+  int? apkVersionCode;
+
+  /// Last install problem, shown under "Needs attention" until resolved.
+  String? installProblem;
   List<DownloadRecord> downloads;
 
   TrackedSource({
@@ -270,20 +317,30 @@ class TrackedSource {
     this.lastChecked,
     this.lastError,
     this.latestVersionSeen,
+    List<String>? categories,
+    this.pinned = false,
+    this.skippedVersion,
+    this.iconUrl,
+    this.pageUrl,
+    this.packageId,
+    this.apkVersionName,
+    this.apkVersionCode,
+    this.installProblem,
     List<DownloadRecord>? downloads,
   }) : mode =
            mode ??
-           (kind == SourceKind.modrinth || kind == SourceKind.curseforge
+           (kind == SourceKind.modrinth || kind == SourceKind.curseforge || kind == SourceKind.hangar
                ? TrackMode.latestPerLoaderAndGameVersion
                : TrackMode.latest),
        channels = channels ?? (kind == SourceKind.github ? {ReleaseChannel.release} : ReleaseChannel.values.toSet()),
        loaders = loaders ?? [],
        fileTypes = fileTypes ?? [],
+       categories = categories ?? [],
        gameVersions = gameVersions ?? [],
        downloads = downloads ?? [];
 
   /// Minecraft-style sources with loaders / game versions.
-  bool get isMod => kind == SourceKind.modrinth || kind == SourceKind.curseforge;
+  bool get isMod => kind == SourceKind.modrinth || kind == SourceKind.curseforge || kind == SourceKind.hangar;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -317,6 +374,15 @@ class TrackedSource {
     'lastChecked': lastChecked?.toIso8601String(),
     'lastError': lastError,
     'latestVersionSeen': latestVersionSeen,
+    'categories': categories,
+    'pinned': pinned,
+    'skippedVersion': skippedVersion,
+    'iconUrl': iconUrl,
+    'pageUrl': pageUrl,
+    'packageId': packageId,
+    'apkVersionName': apkVersionName,
+    'apkVersionCode': apkVersionCode,
+    'installProblem': installProblem,
     'downloads': downloads.map((d) => d.toJson()).toList(),
   };
 
@@ -357,6 +423,15 @@ class TrackedSource {
       lastChecked: _date(j['lastChecked']),
       lastError: j['lastError'] as String?,
       latestVersionSeen: j['latestVersionSeen'] as String?,
+      categories: (j['categories'] as List?)?.cast<String>(),
+      pinned: j['pinned'] as bool? ?? false,
+      skippedVersion: j['skippedVersion'] as String?,
+      iconUrl: j['iconUrl'] as String?,
+      pageUrl: j['pageUrl'] as String?,
+      packageId: j['packageId'] as String?,
+      apkVersionName: j['apkVersionName'] as String?,
+      apkVersionCode: (j['apkVersionCode'] as num?)?.toInt(),
+      installProblem: j['installProblem'] as String?,
       downloads: (j['downloads'] as List? ?? const []).map((e) => DownloadRecord.fromJson((e as Map).cast())).toList(),
     );
   }

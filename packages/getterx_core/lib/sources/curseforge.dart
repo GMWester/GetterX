@@ -35,6 +35,9 @@ class CurseForgeSource implements ReleaseSource {
           : (apiKey.isNotEmpty ? officialBase : keylessProxyBase);
 
   /// The key is only ever sent to the official API host, never to a custom/proxy base URL.
+  /// Request headers (the key only goes to the official API host).
+  Map<String, String> get headers => _headers;
+
   Map<String, String> get _headers => {
     if (apiKey.isNotEmpty && mayReceiveCredential('curseforge', Uri.parse(baseUrl))) 'x-api-key': apiKey,
   };
