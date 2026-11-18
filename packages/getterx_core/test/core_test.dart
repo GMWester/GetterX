@@ -10,6 +10,9 @@ import 'package:getterx_core/selector.dart';
 import 'package:getterx_core/sources/curseforge.dart';
 import 'package:getterx_core/sources/itchio.dart';
 import 'package:getterx_core/sources/modrinth.dart';
+import 'package:getterx_core/sources/fdroid.dart';
+import 'package:getterx_core/sources/forgejo.dart';
+import 'package:getterx_core/sources/gitlab.dart';
 import 'package:getterx_core/sources/web.dart';
 import 'package:getterx_core/store.dart';
 import 'package:http/http.dart' as http;
@@ -435,5 +438,96 @@ void main() {
     expect(rel.map((r) => r.version), ['1.10.2', '1.9.0', 'unversioned']);
     final plan = planSync(s..onlyPlatformFiles = true, rel, platform: linux);
     expect(plan.downloads.single.files.single.name, 'Tool-1.10.2-linux-x64.AppImage');
+  });
+
+  test('GitLab, Forgejo and F-Droid releases', () async {
+    final client = MockClient((req) async {
+      final u = req.url.toString();
+      if (u.startsWith('https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/releases')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'tag_name': 'v2.0',
+              'name': 'Two',
+              'released_at': '2026-10-01T00:00:00Z',
+              'assets': {
+                'links': [
+                  {
+                    'name': 'App',
+                    'url': 'https://gitlab.com/g/sub/p/-/package_files/1/download',
+                    'direct_asset_url': 'https://gitlab.com/g/sub/p/-/releases/v2.0/downloads/app-2.0.apk',
+                  },
+                ],
+                'sources': [
+                  {'format': 'zip', 'url': 'https://gitlab.com/g/sub/p/-/archive/v2.0/p-v2.0.zip'},
+                ],
+              },
+            },
+          ]),
+          200,
+        );
+      }
+      if (u.startsWith('https://codeberg.org/api/v1/repos/o/r/releases')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': 7,
+              'tag_name': 'v1.1',
+              'prerelease': true,
+              'published_at': '2026-09-01T00:00:00Z',
+              'assets': [
+                {
+                  'name': 'r-1.1.AppImage',
+                  'browser_download_url': 'https://codeberg.org/o/r/releases/download/v1.1/r-1.1.AppImage',
+                  'size': 5,
+                },
+              ],
+            },
+          ]),
+          200,
+        );
+      }
+      if (u == 'https://f-droid.org/api/v1/packages/org.x') {
+        return http.Response(
+          jsonEncode({
+            'packageName': 'org.x',
+            'suggestedVersionCode': 20,
+            'packages': [
+              {'versionName': '1.0', 'versionCode': 10},
+              {'versionName': '3.0-beta', 'versionCode': 30},
+              {'versionName': '2.0', 'versionCode': 20},
+            ],
+          }),
+          200,
+        );
+      }
+      return http.Response('nope', 404);
+    });
+    final gl = await GitLabSource(client).fetchReleases(
+      TrackedSource(
+        id: 'a',
+        kind: SourceKind.gitlab,
+        ref: 'gitlab.com/g/sub/p',
+        name: 'p',
+        includeSourceArchives: true,
+      ),
+    );
+    expect(gl.single.files.map((f) => f.name), ['app-2.0.apk', 'p-v2.0-source.zip']);
+    final fj = await ForgejoSource(
+      client,
+    ).fetchReleases(TrackedSource(id: 'b', kind: SourceKind.forgejo, ref: 'codeberg.org/o/r', name: 'r'));
+    expect(fj.single.channel, ReleaseChannel.beta);
+    expect(fj.single.files.single.urls.single, startsWith('https://codeberg.org/'));
+    final fd = await FDroidSource(
+      client,
+    ).fetchReleases(TrackedSource(id: 'c', kind: SourceKind.fdroid, ref: 'org.x', name: 'x'));
+    expect(fd.map((r) => r.id), ['30', '20', '10']);
+    final plan = planSync(
+      TrackedSource(id: 'c', kind: SourceKind.fdroid, ref: 'org.x', name: 'x'),
+      fd,
+      platform: linux,
+    );
+    expect(plan.downloads.single.release.version, '2.0'); // 3.0-beta is newer than F-Droid's suggested build
+    expect(plan.downloads.single.files.single.urls.single, 'https://f-droid.org/repo/org.x_20.apk');
   });
 }

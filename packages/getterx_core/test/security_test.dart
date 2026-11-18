@@ -74,14 +74,16 @@ void main() {
     expect(seen['api.github.com'], 'Bearer secret');
     expect(seen['objects.githubusercontent.com'], isNull);
     await expectLater(
-      Downloader(client)
-          .download(const RemoteFile(name: 'b', urls: ['https://down.grade/x']), File(p.join(tmp.path, 'b'))),
+      Downloader(
+        client,
+      ).download(const RemoteFile(name: 'b', urls: ['https://down.grade/x']), File(p.join(tmp.path, 'b'))),
       throwsA(isA<SourceException>()),
     );
     expect(seen.containsKey('plain.example'), isFalse);
     await expectLater(
-      Downloader(client)
-          .download(const RemoteFile(name: 'c', urls: ['http://plain.example/x']), File(p.join(tmp.path, 'c'))),
+      Downloader(
+        client,
+      ).download(const RemoteFile(name: 'c', urls: ['http://plain.example/x']), File(p.join(tmp.path, 'c'))),
       throwsA(isA<SourceException>()),
     );
     await tmp.delete(recursive: true);

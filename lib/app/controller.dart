@@ -49,6 +49,12 @@ class AppController extends ChangeNotifier {
     }
     c._schedule();
     unawaited(c._startupUpdateCheck());
+    // Catch up on sources that are overdue (e.g. the PC was off).
+    final m = c.settings.checkIntervalMinutes;
+    if (m > 0 &&
+        c.sources.any((s) => s.enabled && DateTime.now().difference(s.lastChecked ?? DateTime(0)).inMinutes >= m)) {
+      Timer(const Duration(seconds: 5), () => c.checkAll());
+    }
     return c;
   }
 
