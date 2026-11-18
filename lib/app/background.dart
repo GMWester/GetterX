@@ -11,8 +11,8 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:workmanager/workmanager.dart';
 
-import '../core/engine.dart';
-import '../core/store.dart';
+import 'package:getterx_core/engine.dart';
+import 'package:getterx_core/store.dart';
 import 'app_paths.dart';
 import 'secure_credentials.dart';
 

@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:getterx/core/credentials.dart';
-import 'package:getterx/core/downloader.dart';
-import 'package:getterx/core/models.dart';
-import 'package:getterx/core/selector.dart';
-import 'package:getterx/core/sources/curseforge.dart';
-import 'package:getterx/core/sources/github.dart';
-import 'package:getterx/core/sources/source.dart';
-import 'package:getterx/core/store.dart';
+import 'package:getterx_core/credentials.dart';
+import 'package:getterx_core/downloader.dart';
+import 'package:getterx_core/models.dart';
+import 'package:getterx_core/selector.dart';
+import 'package:getterx_core/sources/curseforge.dart';
+import 'package:getterx_core/sources/github.dart';
+import 'package:getterx_core/sources/source.dart';
+import 'package:getterx_core/sources/web.dart';
+import 'package:getterx_core/store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
@@ -153,5 +154,13 @@ void main() {
       expect(n.contains('/') || n.contains('\\') || n == '..' || n == '.', isFalse, reason: evil);
       expect(p.isWithin('/root', p.join('/root', n)), isTrue, reason: evil);
     }
+  });
+
+  test('hostile HTML is scanned quickly', () {
+    final html = '<a href="x' * 200000 + ('<a href="/f-1.2.zip">ok</a>');
+    final sw = Stopwatch()..start();
+    final s = TrackedSource(id: 'w', kind: SourceKind.web, ref: 'https://e.com/', name: 'e');
+    WebSource.parsePage(s, Uri.parse(s.ref), html);
+    expect(sw.elapsed.inSeconds, lessThan(5));
   });
 }

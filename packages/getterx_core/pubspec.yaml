@@ -1,0 +1,19 @@
+name: getterx_core
+description: GetterX sync engine (sources, selection, downloads) and CLI. Pure Dart.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  crypto: ^3.0.6
+  http: ^1.4.0
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
+
+executables:
+  getterx-cli: getterx_cli

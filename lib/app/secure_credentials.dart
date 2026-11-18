@@ -1,6 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../core/credentials.dart';
+import 'package:getterx_core/credentials.dart';
 
 /// Stores tokens / API keys in the operating system's credential store:
 /// Android Keystore, iOS/macOS Keychain, Windows Credential Manager (DPAPI),

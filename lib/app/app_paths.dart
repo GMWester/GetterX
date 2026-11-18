@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../core/paths.dart';
+import 'package:getterx_core/paths.dart';
 
 Future<AppPaths> resolveAppPaths() async {
   if (Platform.isAndroid) {

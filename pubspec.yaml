@@ -35,10 +35,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  getterx_core:
+    path: packages/getterx_core
   http: ^1.6.0
   path: ^1.9.1
   path_provider: ^2.1.6
-  crypto: ^3.0.8
   file_picker: ^13.4.0
   open_filex: ^5.0.0
   workmanager: ^0.10.10
@@ -57,7 +58,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  test: ^1.32.0
   flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the

@@ -1,0 +1,303 @@
+name: Build & Release
+
+# Every push/PR builds and tests all platforms.
+# A GitHub release is created only on the default branch, and only when the
+# version in pubspec.yaml has no release yet ("v<version>"): bump the version
+# to publish an update. One release holds every platform's files.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      build_number: ${{ steps.v.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Version
+        id: v
+        run: |
+          V=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          IFS=. read -r MA MI PA <<< "$V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          # Monotonic Android versionCode derived from the version (split APKs add 1000*abi).
+          echo "build_number=$((MA*1000000 + MI*10000 + PA*100))" >> "$GITHUB_OUTPUT"
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Dependency vulnerability scan (OSV.dev)
+        run: python3 tool/osv_check.py pubspec.lock packages/getterx_core/pubspec.lock
+      - name: Core engine tests
+        working-directory: packages/getterx_core
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Release signing key
+        id: key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KS" ]; then
+            echo "::warning::No Android signing secrets: APKs are debug-signed and will NOT be released."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$KS" | base64 -d > android/app/release.jks
+          printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > android/key.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+      - name: Build APKs
+        run: |
+          flutter build apk --release --split-per-abi --build-number=${{ needs.test.outputs.build_number }}
+          mkdir -p dist
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            cp "build/app/outputs/flutter-apk/app-$abi-release.apk" "dist/GetterX-android-$abi.apk"
+          done
+          flutter build apk --release --build-number=${{ needs.test.outputs.build_number }}
+          cp build/app/outputs/flutter-apk/app-release.apk dist/GetterX-android-universal.apk
+      - name: Verify signature
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for f in dist/*.apk; do "$APKSIGNER" verify --print-certs "$f" | grep -q "CN=GetterX" || { echo "bad signature: $f"; exit 1; }; done
+      - name: Remove key material
+        if: always()
+        run: rm -f android/app/release.jks android/key.properties
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+
+  linux:
+    needs: test
+    runs-on: ubuntu-22.04 # older glibc = runs on more distros
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev libsecret-1-dev liblzma-dev clang cmake pkg-config libfuse2 file
+      - name: Build
+        run: |
+          flutter build linux --release --build-number=${{ needs.test.outputs.build_number }}
+          (cd packages/getterx_core && dart pub get && dart compile exe bin/getterx_cli.dart -o ../../build/getterx-cli)
+      - name: Package (portable tar.gz, .deb, AppImage)
+        run: |
+          V=${{ needs.test.outputs.version }}
+          B=build/linux/x64/release/bundle
+          mkdir -p dist
+          # Portable / folder build
+          mkdir -p pkg/GetterX && cp -a $B/. pkg/GetterX/ && cp build/getterx-cli pkg/GetterX/
+          cp installer/linux/portable.txt pkg/GetterX/
+          tar -C pkg -czf dist/GetterX-linux-x64-portable.tar.gz GetterX
+          # .deb (installed to /opt/getterx)
+          D=pkg/deb
+          mkdir -p $D/DEBIAN $D/opt/getterx $D/usr/bin $D/usr/share/applications $D/usr/share/icons/hicolor/256x256/apps
+          cp -a $B/. $D/opt/getterx/ && cp build/getterx-cli $D/opt/getterx/
+          ln -s /opt/getterx/getterx $D/usr/bin/getterx
+          ln -s /opt/getterx/getterx-cli $D/usr/bin/getterx-cli
+          cp installer/linux/getterx.desktop $D/usr/share/applications/
+          cp assets/icon.png $D/usr/share/icons/hicolor/256x256/apps/getterx.png
+          cat > $D/DEBIAN/control <<CTRL
+          Package: getterx
+          Version: $V
+          Architecture: amd64
+          Maintainer: GetterX <noreply@github.com>
+          Depends: libgtk-3-0, libsecret-1-0
+          Section: utils
+          Priority: optional
+          Homepage: https://github.com/gmwester/GetterX
+          Description: Automatic downloads from GitHub, Modrinth, CurseForge, itch.io and more
+          CTRL
+          sed -i 's/^ *//' $D/DEBIAN/control
+          dpkg-deb --root-owner-group --build $D dist/GetterX-linux-x64.deb
+          # AppImage
+          A=pkg/GetterX.AppDir
+          mkdir -p $A && cp -a $B/. $A/ && cp build/getterx-cli $A/
+          cp installer/linux/getterx.desktop $A/getterx.desktop
+          cp assets/icon.png $A/getterx.png
+          printf '#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\nexec "$HERE/getterx" "$@"\n' > $A/AppRun
+          chmod +x $A/AppRun
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool $A dist/GetterX-linux-x64.AppImage
+          cp build/getterx-cli dist/getterx-cli-linux-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        shell: bash
+        run: |
+          flutter build windows --release --build-number=${{ needs.test.outputs.build_number }}
+          (cd packages/getterx_core && dart pub get && dart compile exe bin/getterx_cli.dart -o ../../build/windows/x64/runner/Release/getterx-cli.exe)
+      - name: Installer (install or portable)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ needs.test.outputs.version }}" "/DSourceDir=..\..\build\windows\x64\runner\Release" installer\windows\getterx.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pkg\GetterX | Out-Null
+          Copy-Item -Recurse build\windows\x64\runner\Release\* pkg\GetterX\
+          Copy-Item installer\windows\portable.txt pkg\GetterX\
+          Compress-Archive -Path pkg\GetterX -DestinationPath dist\GetterX-windows-x64-portable.zip
+          Copy-Item build\windows\x64\runner\Release\getterx-cli.exe dist\getterx-cli-windows-x64.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  macos:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        run: |
+          flutter build macos --release --build-number=${{ needs.test.outputs.build_number }}
+          (cd packages/getterx_core && dart pub get && dart compile exe bin/getterx_cli.dart -o ../../build/getterx-cli)
+      - name: Package (zip, portable zip, dmg)
+        run: |
+          APP=build/macos/Build/Products/Release/GetterX.app
+          mkdir -p dist pkg/GetterX pkg/dmg
+          ditto -c -k --keepParent "$APP" dist/GetterX-macos.zip
+          ditto "$APP" pkg/GetterX/GetterX.app
+          cp installer/macos/portable.txt pkg/GetterX/
+          (cd pkg && ditto -c -k --keepParent GetterX ../dist/GetterX-macos-portable.zip)
+          ditto "$APP" pkg/dmg/GetterX.app && ln -s /Applications pkg/dmg/Applications
+          hdiutil create -volname GetterX -srcfolder pkg/dmg -ov -format UDZO dist/GetterX-macos.dmg
+          cp build/getterx-cli dist/getterx-cli-macos-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  ios:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build (unsigned, for AltStore / SideStore / your own signing)
+        run: |
+          flutter build ios --release --no-codesign --build-number=${{ needs.test.outputs.build_number }}
+          mkdir -p dist Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr dist/GetterX-ios-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: dist/*
+
+  release:
+    needs: [test, android, linux, windows, macos, ios]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is this version already released?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ needs.test.outputs.version }}
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$V already released - bump the version in pubspec.yaml to publish an update."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Require signed Android build
+        if: steps.check.outputs.skip == 'false' && needs.android.outputs.signed != 'true'
+        run: |
+          echo "::error::Android signing secrets are missing - refusing to publish debug-signed APKs."
+          exit 1
+      - uses: actions/download-artifact@v4
+        if: steps.check.outputs.skip == 'false'
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish release v${{ needs.test.outputs.version }}
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ needs.test.outputs.version }}
+          cp installer/install.sh dist/getterx-install.sh
+          (cd dist && sha256sum * > SHA256SUMS)
+          gh release create "v$V" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "GetterX $V" \
+            --generate-notes

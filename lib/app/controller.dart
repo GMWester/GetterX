@@ -5,12 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 
-import '../core/auth.dart';
-import '../core/credentials.dart';
-import '../core/engine.dart';
-import '../core/models.dart';
-import '../core/paths.dart';
-import '../core/store.dart';
+import 'package:getterx_core/auth.dart';
+import 'package:getterx_core/credentials.dart';
+import 'package:getterx_core/engine.dart';
+import 'package:getterx_core/models.dart';
+import 'package:getterx_core/paths.dart';
+import 'package:getterx_core/store.dart';
 import 'background.dart';
 import 'secure_credentials.dart';
 import 'self_update.dart';

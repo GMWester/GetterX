@@ -6,7 +6,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/models.dart';
+import 'package:getterx_core/models.dart';
 
 IconData kindIcon(SourceKind k) => switch (k) {
   SourceKind.github => Icons.code,

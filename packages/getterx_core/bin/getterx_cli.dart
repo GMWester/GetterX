@@ -2,11 +2,11 @@
 // on its own (servers, cron, scripts). Shares config with the app.
 import 'dart:io';
 
-import 'package:getterx/core/credentials.dart';
-import 'package:getterx/core/engine.dart';
-import 'package:getterx/core/models.dart';
-import 'package:getterx/core/paths.dart';
-import 'package:getterx/core/store.dart';
+import 'package:getterx_core/credentials.dart';
+import 'package:getterx_core/engine.dart';
+import 'package:getterx_core/models.dart';
+import 'package:getterx_core/paths.dart';
+import 'package:getterx_core/store.dart';
 
 const usage = '''
 GetterX CLI

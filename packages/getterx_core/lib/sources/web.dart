@@ -18,6 +18,8 @@ class WebSource implements ReleaseSource {
   final http.Client client;
   WebSource(this.client);
 
+  static const maxPageBytes = 4 * 1024 * 1024;
+
   static const fileExtensions = [
     'apk',
     'aab',
@@ -84,7 +86,9 @@ class WebSource implements ReleaseSource {
     if (looksLikeFile(source.ref) && source.linkRegex.isEmpty) return [await _directFile(uri)];
     final res = await client.get(uri, headers: {'User-Agent': userAgent, 'Accept': 'text/html,*/*'});
     if (res.statusCode >= 400) throw SourceException('HTTP ${res.statusCode} from ${uri.host}');
-    return parsePage(source, uri, utf8.decode(res.bodyBytes, allowMalformed: true));
+    // Cap what is scanned so a huge / hostile page cannot stall the app.
+    final bytes = res.bodyBytes.length > maxPageBytes ? res.bodyBytes.sublist(0, maxPageBytes) : res.bodyBytes;
+    return parsePage(source, uri, utf8.decode(bytes, allowMalformed: true));
   }
 
   Future<RemoteRelease> _directFile(Uri uri) async {
@@ -115,17 +119,12 @@ class WebSource implements ReleaseSource {
   static List<RemoteRelease> parsePage(TrackedSource s, Uri page, String html) {
     final linkRe = s.linkRegex.trim().isEmpty ? null : RegExp(s.linkRegex, caseSensitive: false);
     final verRe = s.versionExtractRegex.trim().isEmpty ? null : RegExp(s.versionExtractRegex, caseSensitive: false);
-    final anchors = RegExp(
-      r'''<a\b[^>]*?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>(.*?)</a>''',
-      caseSensitive: false,
-      dotAll: true,
-    );
     final seen = <String>{};
     final byVersion = <String, List<RemoteFile>>{};
     final firstSeen = <String, int>{};
     var index = 0;
-    for (final m in anchors.allMatches(html)) {
-      final raw = _unescape((m[1] ?? m[2] ?? m[3] ?? '').trim());
+    for (final m in scanLinks(html)) {
+      final raw = _unescape(m.href.trim());
       if (raw.isEmpty || raw.startsWith('#') || raw.startsWith('javascript:') || raw.startsWith('mailto:')) continue;
       Uri url;
       try {
@@ -137,7 +136,7 @@ class WebSource implements ReleaseSource {
       final full = url.toString();
       if (linkRe != null ? !linkRe.hasMatch(full) : !looksLikeFile(full)) continue;
       if (!seen.add(full)) continue;
-      final text = _unescape(m[4]!.replaceAll(RegExp(r'<[^>]+>'), ' ')).trim();
+      final text = _unescape(m.text.replaceAll(RegExp(r'<[^>]{0,500}>'), ' ')).trim();
       final segs = url.pathSegments.where((e) => e.isNotEmpty).toList();
       final name = segs.isEmpty ? url.host : Uri.decodeComponent(segs.last);
       String? version;
@@ -177,6 +176,32 @@ class WebSource implements ReleaseSource {
       );
     }
     return out;
+  }
+
+  /// Linear-time scan for `<a href=…>text</a>` (no regex backtracking over
+  /// the whole page, so hostile or broken HTML cannot stall the app).
+  static Iterable<({String href, String text})> scanLinks(String html) sync* {
+    final lower = html.toLowerCase();
+    final hrefRe = RegExp(r'''href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))''', caseSensitive: false);
+    var pos = 0;
+    var nextGt = -2; // cached index of the next '>' (-1 = none left)
+    var nextClose = -2; // cached index of the next '</a' (-1 = none left)
+    while (true) {
+      final start = lower.indexOf('<a', pos);
+      if (start < 0) return;
+      pos = start + 2;
+      if (pos < lower.length && !RegExp(r'[\s>]').hasMatch(lower[pos])) continue; // e.g. <abbr>
+      if (nextGt != -1 && nextGt < pos) nextGt = lower.indexOf('>', pos);
+      if (nextGt < 0) return;
+      if (nextGt - start > 4000) continue;
+      final tag = html.substring(start, nextGt);
+      final h = hrefRe.firstMatch(tag);
+      if (h == null) continue;
+      if (nextClose != -1 && nextClose < nextGt) nextClose = lower.indexOf('</a', nextGt);
+      final text = nextClose > 0 && nextClose - nextGt < 4000 ? html.substring(nextGt + 1, nextClose) : '';
+      yield (href: h[1] ?? h[2] ?? h[3] ?? '', text: text);
+      pos = nextGt + 1;
+    }
   }
 
   static String _unescape(String s) => s

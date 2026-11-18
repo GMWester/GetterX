@@ -9,13 +9,13 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/downloader.dart';
-import '../core/models.dart';
-import '../core/paths.dart';
-import '../core/platform_match.dart';
-import '../core/sources/github.dart';
-import '../core/sources/source.dart';
-import '../core/version_utils.dart';
+import 'package:getterx_core/downloader.dart';
+import 'package:getterx_core/models.dart';
+import 'package:getterx_core/paths.dart';
+import 'package:getterx_core/platform_match.dart';
+import 'package:getterx_core/sources/github.dart';
+import 'package:getterx_core/sources/source.dart';
+import 'package:getterx_core/version_utils.dart';
 
 /// The only repository GetterX ever updates itself from.
 const selfRepo = 'gmwester/GetterX';
@@ -143,24 +143,28 @@ class SelfUpdater {
         await OpenFilex.open(file.path, type: 'application/vnd.android.package-archive');
         return;
       case InstallKind.windowsInstalled:
+        final pf = Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
         await Process.start(file.path, [
           '/VERYSILENT',
           '/SUPPRESSMSGBOXES',
           '/NORESTART',
           '/RELAUNCH=1',
+          p.isWithin(pf, installDir) ? '/ALLUSERS' : '/CURRENTUSER',
+          '/DIR=$installDir',
         ], mode: ProcessStartMode.detached);
         exit(0);
       case InstallKind.windowsPortable:
+        String c(String v) => v.replaceAll('%', '%%'); // no variable expansion in paths
         final script = File(p.join(tmp.path, 'update.cmd'));
         await script.writeAsString(
           [
             '@echo off',
             ':wait',
             'tasklist /FI "PID eq $pid" 2>nul | find "$pid" >nul && (timeout /t 1 /nobreak >nul & goto wait)',
-            'mkdir "${tmp.path}\\x"',
-            'tar -xf "${file.path}" -C "${tmp.path}\\x"',
-            'robocopy "${tmp.path}\\x\\GetterX" "$installDir" /E /XD GetterX-Data GetterX-Downloads /NFL /NDL /NJH /NJS /NP',
-            'start "" "$exe"',
+            'mkdir "${c(tmp.path)}\\x"',
+            'tar -xf "${c(file.path)}" -C "${c(tmp.path)}\\x"',
+            'robocopy "${c(tmp.path)}\\x\\GetterX" "${c(installDir)}" /E /XD GetterX-Data GetterX-Downloads /NFL /NDL /NJH /NJS /NP',
+            'start "" "${c(exe)}"',
           ].join('\r\n'),
         );
         await Process.start('cmd', ['/c', script.path], mode: ProcessStartMode.detached);
@@ -179,18 +183,23 @@ class SelfUpdater {
       case InstallKind.linuxFolder:
         await _runShell(tmp.path, [
           'while kill -0 $pid 2>/dev/null; do sleep 1; done',
-          'mkdir -p "${tmp.path}/x" && tar -xzf "${file.path}" -C "${tmp.path}/x"',
-          'cp -a "${tmp.path}/x/GetterX/." "$installDir/"',
-          'nohup "$exe" >/dev/null 2>&1 &',
+          'mkdir -p ${q('${tmp.path}/x')} && tar -xzf ${q(file.path)} -C ${q('${tmp.path}/x')}',
+            // Keep the current mode: only a portable install keeps portable.txt.
+            '[ -f ${q('$installDir/portable.txt')} ] || rm -f ${q('${tmp.path}/x/GetterX/portable.txt')}',
+          'cp -a ${q('${tmp.path}/x/GetterX/.')} ${q('$installDir/')}',
+          'nohup ${q(exe)} >/dev/null 2>&1 &',
         ]);
         exit(0);
       case InstallKind.macApp:
         final bundle = p.dirname(p.dirname(p.dirname(exe))); // …/GetterX.app
+        if (!bundle.endsWith('.app') || p.split(bundle).length < 3) {
+          throw SourceException('Unexpected app location $bundle; update manually.');
+        }
         await _runShell(tmp.path, [
           'while kill -0 $pid 2>/dev/null; do sleep 1; done',
-          'mkdir -p "${tmp.path}/x" && ditto -x -k "${file.path}" "${tmp.path}/x"',
-          'rm -rf "$bundle" && ditto "${tmp.path}/x/GetterX.app" "$bundle"',
-          'open "$bundle"',
+          'mkdir -p ${q('${tmp.path}/x')} && ditto -x -k ${q(file.path)} ${q('${tmp.path}/x')}',
+          'rm -rf ${q(bundle)} && ditto ${q('${tmp.path}/x/GetterX.app')} ${q(bundle)}',
+          'open ${q(bundle)}',
         ]);
         exit(0);
       case InstallKind.ios:
@@ -198,6 +207,9 @@ class SelfUpdater {
         return;
     }
   }
+
+  /// Quotes a value for /bin/sh so paths with spaces, quotes or `$` are safe.
+  static String q(String v) => "'${v.replaceAll("'", r"'\''")}'";
 
   Future<void> _runShell(String dir, List<String> lines) async {
     final script = File(p.join(dir, 'update.sh'));

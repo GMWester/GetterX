@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../app/controller.dart';
-import '../core/auth.dart';
-import '../core/sources/source.dart';
+import 'package:getterx_core/auth.dart';
+import 'package:getterx_core/sources/source.dart';
 import 'common.dart';
 
 /// Compile-time default for "Sign in with GitHub":
