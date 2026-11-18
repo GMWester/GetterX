@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
+import '../credentials.dart';
 import '../models.dart';
 import 'source.dart';
 
@@ -23,14 +24,18 @@ class ItchSource implements ReleaseSource {
 
   ItchSource(this.client, {this.apiKey = '', this.apiBase = 'https://api.itch.io'});
 
-  Map<String, String> get _headers => {'Authorization': 'Bearer $apiKey'};
+  Map<String, String> get _headers =>
+      mayReceiveCredential('itchio', Uri.parse(apiBase)) ? {'Authorization': 'Bearer $apiKey'} : const {};
 
   /// API URL with the key also given as `api_key` (accepted by every itch.io endpoint).
-  Uri _api(String path, [Map<String, String> q = const {}]) =>
-      Uri.parse('$apiBase$path').replace(queryParameters: {...q, 'api_key': apiKey});
+  Uri _api(String path, [Map<String, String> q = const {}]) {
+    final u = Uri.parse('$apiBase$path');
+    if (!mayReceiveCredential('itchio', u)) throw SourceException('Refusing to send itch.io key to ${u.host}');
+    return u.replace(queryParameters: {...q, 'api_key': apiKey});
+  }
 
   void _requireKey() {
-    if (apiKey.isEmpty) {
+    if (apiKey.isEmpty || !mayReceiveCredential('itchio', Uri.parse(apiBase))) {
       throw SourceException(
           'itch.io needs an API key: create one at itch.io/user/settings/api-keys and add it in Settings.');
     }

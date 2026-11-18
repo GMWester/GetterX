@@ -47,6 +47,34 @@ class Downloader {
   final http.Client client;
   Downloader(this.client);
 
+  /// Follows redirects manually so credentials are only sent to the host
+  /// they belong to (GitHub/itch.io redirect to signed CDN URLs).
+  Future<http.StreamedResponse> _send(Uri uri, Map<String, String> headers) async {
+    var current = uri;
+    final origin = uri.host;
+    for (var hop = 0; hop < 10; hop++) {
+      // HTTPS only: never download (or send credentials) over plain HTTP,
+      // including after a redirect (no downgrade).
+      if (current.scheme != 'https') {
+        throw SourceException('Refusing non-HTTPS download from ${current.host}');
+      }
+      final req = http.Request('GET', current)
+        ..followRedirects = false
+        ..headers['User-Agent'] = userAgent;
+      // Credentials only go to the exact host they were issued for.
+      if (current.host == origin) req.headers.addAll(headers);
+      final res = await client.send(req);
+      if (res.isRedirect || (res.statusCode >= 300 && res.statusCode < 400 && res.headers['location'] != null)) {
+        await res.stream.drain<void>();
+        // Signed CDN URLs on other hosts never receive the origin's credentials.
+        current = current.resolve(res.headers['location']!);
+        continue;
+      }
+      return res;
+    }
+    throw SourceException('Too many redirects for $uri');
+  }
+
   /// Downloads [rf] to [dest], verifying size/hash. Tries mirrors in order.
   Future<void> download(RemoteFile rf, File dest,
       {ProgressCallback? onProgress, Map<String, String> headers = const {}}) async {
@@ -55,10 +83,7 @@ class Downloader {
     for (final url in rf.urls) {
       final part = File('${dest.path}.part');
       try {
-        final req = http.Request('GET', Uri.parse(url))
-          ..headers['User-Agent'] = userAgent
-          ..headers.addAll(headers);
-        final res = await client.send(req);
+        final res = await _send(Uri.parse(url), {...rf.headers, ...headers});
         if (res.statusCode >= 400) {
           await res.stream.drain<void>();
           throw SourceException('HTTP ${res.statusCode} downloading ${rf.name}');

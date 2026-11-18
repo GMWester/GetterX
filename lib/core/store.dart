@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'credentials.dart';
 import 'models.dart';
 
 class AppConfig {
@@ -32,8 +33,9 @@ class LogEntry {
   final String level; // info | download | delete | error
   final String message;
   final String? sourceId;
-  LogEntry(this.level, this.message, {this.sourceId, DateTime? time})
-      : time = time ?? DateTime.now();
+  LogEntry(this.level, String message, {this.sourceId, DateTime? time})
+      : message = redact(message),
+        time = time ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
         't': time.toIso8601String(),

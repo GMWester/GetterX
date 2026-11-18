@@ -2,13 +2,14 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../credentials.dart';
 import '../models.dart';
 
 const userAgent = 'GetterX/1.0 (+https://github.com/gmwester/GetterX)';
 
 class SourceException implements Exception {
   final String message;
-  SourceException(this.message);
+  SourceException(String message) : message = redact(message);
   @override
   String toString() => message;
 }
@@ -25,6 +26,7 @@ abstract class ReleaseSource {
 
 Future<dynamic> getJson(http.Client client, Uri uri,
     {Map<String, String> headers = const {}}) async {
+  if (uri.scheme != 'https') throw SourceException('Refusing non-HTTPS request to ${uri.host}');
   final res = await client.get(uri, headers: {
     'User-Agent': userAgent,
     'Accept': 'application/json',

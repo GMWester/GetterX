@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../credentials.dart';
 import '../models.dart';
 import 'source.dart';
 
@@ -13,7 +14,20 @@ class GitHubSource implements ReleaseSource {
   Map<String, String> get _headers => {
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        if (_tokenAllowed) 'Authorization': 'Bearer $token',
+      };
+
+  bool get _tokenAllowed => token.isNotEmpty && mayReceiveCredential('github', Uri.parse(apiBase));
+
+  /// Auth headers for a download URL, only if it points at GitHub's API host.
+  Map<String, String> _authFor(Object? url) =>
+      _tokenAllowed && url is String && mayReceiveCredential('github', Uri.parse(url))
+          ? _assetHeaders
+          : const {};
+
+  Map<String, String> get _assetHeaders => {
+        'Accept': 'application/octet-stream',
+        'Authorization': 'Bearer $token',
       };
 
   @override
@@ -48,7 +62,13 @@ class GitHubSource implements ReleaseSource {
               .cast<Map<String, dynamic>>())
             RemoteFile(
               name: a['name'] as String,
-              urls: [a['browser_download_url'] as String],
+              // With a token the API URL is used so private repos work; it
+              // redirects to a signed URL (auth is dropped on the redirect).
+              urls: [
+                if (_authFor(a['url']).isNotEmpty) a['url'] as String,
+                a['browser_download_url'] as String,
+              ],
+              headers: _authFor(a['url']),
               size: a['size'] as int?,
               hashes: _digest(a['digest'] as String?),
             ),
@@ -56,6 +76,7 @@ class GitHubSource implements ReleaseSource {
             RemoteFile(
               name: '$repoName-${_safeTag(tag)}-source.zip',
               urls: [r['zipball_url'] as String],
+              headers: _authFor(r['zipball_url']),
               isSourceArchive: true,
             ),
         ];
@@ -104,6 +125,7 @@ class GitHubSource implements ReleaseSource {
             RemoteFile(
               name: '$repoName-${_safeTag(name)}-source.zip',
               urls: [t['zipball_url'] as String],
+              headers: _authFor(t['zipball_url']),
               isSourceArchive: true,
             ),
           ],

@@ -48,6 +48,10 @@ class RemoteFile {
   final Map<String, String> hashes;
   final bool primary;
 
+  /// Extra request headers (e.g. auth for private GitHub assets). Dropped
+  /// automatically when a download redirects to another host.
+  final Map<String, String> headers;
+
   /// True for GitHub auto-generated source archives.
   final bool isSourceArchive;
 
@@ -63,6 +67,7 @@ class RemoteFile {
     this.primary = false,
     this.isSourceArchive = false,
     this.platforms = const {},
+    this.headers = const {},
   });
 }
 
@@ -349,9 +354,16 @@ T? _enumOr<T extends Enum>(List<T> values, Object? name, T? fallback) {
 class AppSettings {
   /// Root folder for all downloads. Empty = platform default.
   String downloadDir;
-  String githubToken;
-  String curseforgeApiKey;
-  String itchApiKey;
+
+  /// OAuth app client id for "Sign in with GitHub" (device flow).
+  String githubClientId;
+
+  /// Display names of signed-in accounts (informational).
+  String githubUser;
+  String itchUser;
+  String modrinthUser;
+
+  /// Secrets (tokens / API keys) are NOT stored here: see core/credentials.dart.
 
   /// CurseForge-compatible API base. Used without a key when the official API is unavailable.
   String curseforgeBaseUrl;
@@ -364,9 +376,10 @@ class AppSettings {
 
   AppSettings({
     this.downloadDir = '',
-    this.githubToken = '',
-    this.curseforgeApiKey = '',
-    this.itchApiKey = '',
+    this.githubClientId = '',
+    this.githubUser = '',
+    this.itchUser = '',
+    this.modrinthUser = '',
     this.curseforgeBaseUrl = '',
     this.checkIntervalMinutes = 360,
     this.backgroundChecks = true,
@@ -376,9 +389,10 @@ class AppSettings {
 
   Map<String, dynamic> toJson() => {
         'downloadDir': downloadDir,
-        'githubToken': githubToken,
-        'curseforgeApiKey': curseforgeApiKey,
-        'itchApiKey': itchApiKey,
+        'githubClientId': githubClientId,
+        'githubUser': githubUser,
+        'itchUser': itchUser,
+        'modrinthUser': modrinthUser,
         'curseforgeBaseUrl': curseforgeBaseUrl,
         'checkIntervalMinutes': checkIntervalMinutes,
         'backgroundChecks': backgroundChecks,
@@ -388,9 +402,10 @@ class AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> j) => AppSettings(
         downloadDir: j['downloadDir'] as String? ?? '',
-        githubToken: j['githubToken'] as String? ?? '',
-        curseforgeApiKey: j['curseforgeApiKey'] as String? ?? '',
-        itchApiKey: j['itchApiKey'] as String? ?? '',
+        githubClientId: j['githubClientId'] as String? ?? '',
+        githubUser: j['githubUser'] as String? ?? '',
+        itchUser: j['itchUser'] as String? ?? '',
+        modrinthUser: j['modrinthUser'] as String? ?? '',
         curseforgeBaseUrl: j['curseforgeBaseUrl'] as String? ?? '',
         checkIntervalMinutes: j['checkIntervalMinutes'] as int? ?? 360,
         backgroundChecks: j['backgroundChecks'] as bool? ?? true,

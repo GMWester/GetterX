@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../credentials.dart';
 import '../models.dart';
 import 'source.dart';
 
@@ -7,12 +8,20 @@ class ModrinthSource implements ReleaseSource {
   final http.Client client;
   final String apiBase;
 
-  ModrinthSource(this.client, {this.apiBase = 'https://api.modrinth.com/v2'});
+  /// Personal access token: gives access to private / unlisted / draft projects.
+  final String token;
+
+  ModrinthSource(this.client, {this.token = '', this.apiBase = 'https://api.modrinth.com/v2'});
+
+  Map<String, String> get _headers => {
+        if (token.isNotEmpty && mayReceiveCredential('modrinth', Uri.parse(apiBase))) 'Authorization': token
+      };
 
   @override
   Future<ProjectInfo> fetchProject(String ref) async {
     final j = await getJson(
-            client, Uri.parse('$apiBase/project/${Uri.encodeComponent(ref)}'))
+            client, Uri.parse('$apiBase/project/${Uri.encodeComponent(ref)}'),
+            headers: _headers)
         as Map<String, dynamic>;
     final type = j['project_type'] as String? ?? 'mod';
     return ProjectInfo(
@@ -30,7 +39,8 @@ class ModrinthSource implements ReleaseSource {
     final list = await getJson(
         client,
         Uri.parse(
-            '$apiBase/project/${Uri.encodeComponent(source.ref)}/version?include_changelog=false')) as List;
+            '$apiBase/project/${Uri.encodeComponent(source.ref)}/version?include_changelog=false'),
+        headers: _headers) as List;
     return parseVersions(list, source.ref);
   }
 

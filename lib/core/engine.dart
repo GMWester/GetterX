@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
+import 'credentials.dart';
 import 'downloader.dart';
 import 'link_parser.dart';
 import 'models.dart';
@@ -43,6 +44,15 @@ class Engine {
   /// Used when settings.downloadDir is empty.
   final String defaultDownloadRoot;
   final _progress = StreamController<Progress>.broadcast();
+
+  Credentials _credentials = const Credentials();
+  Credentials get credentials => _credentials;
+  set credentials(Credentials c) {
+    _credentials = c;
+    redactionValues
+      ..clear()
+      ..addAll(c.values);
+  }
   final _running = <String>{};
 
   Engine(this.store, {http.Client? client, PlatformInfo? platform, required this.defaultDownloadRoot})
@@ -56,11 +66,11 @@ class Engine {
   AppSettings get settings => store.config.settings;
 
   ReleaseSource sourceFor(SourceKind k) => switch (k) {
-        SourceKind.github => GitHubSource(client, token: settings.githubToken),
-        SourceKind.modrinth => ModrinthSource(client),
+        SourceKind.github => GitHubSource(client, token: credentials.githubToken),
+        SourceKind.modrinth => ModrinthSource(client, token: credentials.modrinthToken),
         SourceKind.curseforge => CurseForgeSource(client,
-            apiKey: settings.curseforgeApiKey, baseUrl: settings.curseforgeBaseUrl),
-        SourceKind.itchio => ItchSource(client, apiKey: settings.itchApiKey),
+            apiKey: credentials.curseforgeApiKey, baseUrl: settings.curseforgeBaseUrl),
+        SourceKind.itchio => ItchSource(client, apiKey: credentials.itchApiKey),
       };
 
   String get downloadRoot =>
@@ -138,6 +148,10 @@ class Engine {
         try {
           for (final rf in pd.files) {
             final dest = File(p.join(dir, sanitizeName(rf.name)));
+            // Defence in depth against path traversal from remote names.
+            if (!p.isWithin(p.normalize(root), p.normalize(dest.path))) {
+              throw SourceException('Unsafe file path for ${rf.name}');
+            }
             final key = '${pd.release.id}/${rf.name}';
             final prev = fetched[key];
             if (prev != null && p.equals(prev, dest.path)) {
@@ -171,7 +185,7 @@ class Engine {
               sourceId: s.id));
         } catch (e) {
           failedSlots.add(pd.slot);
-          errors.add('${pd.release.version}: $e');
+          errors.add(redact('${pd.release.version}: $e'));
           await store.log(LogEntry('error', '${s.name}: ${pd.release.version}: $e', sourceId: s.id));
           // Remove partial files of this slot that are not used elsewhere.
         }
@@ -220,8 +234,8 @@ class Engine {
       s.downloads = kept;
       s.lastError = errors.isEmpty ? null : errors.join('\n');
     } catch (e) {
-      errors.add('$e');
-      s.lastError = '$e';
+      errors.add(redact('$e'));
+      s.lastError = redact('$e');
       await store.log(LogEntry('error', '${s.name}: $e', sourceId: s.id));
     } finally {
       s.lastChecked = DateTime.now();

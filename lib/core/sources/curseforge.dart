@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../credentials.dart';
 import '../models.dart';
 import 'source.dart';
 
@@ -33,8 +34,10 @@ class CurseForgeSource implements ReleaseSource {
             ? baseUrl.replaceAll(RegExp(r'/+$'), '')
             : (apiKey.isNotEmpty ? officialBase : keylessProxyBase);
 
-  Map<String, String> get _headers =>
-      {if (apiKey.isNotEmpty) 'x-api-key': apiKey};
+  /// The key is only ever sent to the official API host, never to a custom/proxy base URL.
+  Map<String, String> get _headers => {
+        if (apiKey.isNotEmpty && mayReceiveCredential('curseforge', Uri.parse(baseUrl))) 'x-api-key': apiKey
+      };
 
   Future<Map<String, dynamic>> _resolve(String ref) async {
     final id = int.tryParse(ref);
