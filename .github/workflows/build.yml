@@ -99,8 +99,6 @@ jobs:
           echo "$KS" | base64 -d > android/app/release.jks
           printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$KS_PASS" "$KEY_ALIAS" "$KEY_PASS" > android/key.properties
           echo "signed=true" >> "$GITHUB_OUTPUT"
-      - name: Android SDK platform 37
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" >/dev/null
       - name: Build APKs
         run: |
           flutter build apk --release --split-per-abi --build-number=${{ needs.test.outputs.build_number }}
