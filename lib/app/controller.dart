@@ -11,6 +11,7 @@ import 'package:getterx_core/engine.dart';
 import 'package:getterx_core/models.dart';
 import 'package:getterx_core/paths.dart';
 import 'package:getterx_core/store.dart';
+
 import 'background.dart';
 import 'secure_credentials.dart';
 import 'self_update.dart';

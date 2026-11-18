@@ -11,6 +11,9 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+#ifndef Arch
+  #define Arch "x64"
+#endif
 #ifndef SourceDir
   #define SourceDir "..\..\build\windows\x64\runner\Release"
 #endif
@@ -29,9 +32,14 @@ DefaultGroupName=GetterX
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog commandline
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputBaseFilename=GetterX-windows-x64-setup
+#endif
+OutputBaseFilename=GetterX-windows-{#Arch}-setup
 OutputDir=..\..\dist
 Compression=lzma2/max
 SolidCompression=yes

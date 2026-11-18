@@ -71,32 +71,49 @@ class ConfigStore {
     }
   }
 
-  Future<AppConfig> load() async {
+  Future<AppConfig> load() => _locked(() async {
     await dataDir.create(recursive: true);
     config = _read();
     return config;
-  }
+  });
 
   /// Re-reads the file (another process / background task may have written it).
   Future<AppConfig> reload() => load();
 
+  static int _seq = 0;
+  Future<void> _lock = Future.value();
+
+  /// Runs read-modify-write operations one at a time within this process.
+  Future<T> _locked<T>(Future<T> Function() fn) {
+    final next = _lock.then((_) => fn());
+    _lock = next.then((_) {}, onError: (_) {});
+    return next;
+  }
+
   Future<void> _write(AppConfig c) async {
     await dataDir.create(recursive: true);
-    final tmp = File('${_file.path}.tmp');
+    // Unique temp name: other processes (background task, CLI) may write at the same time.
+    final tmp = File('${_file.path}.$pid.${_seq++}.tmp');
     await tmp.writeAsString(const JsonEncoder.withIndent('  ').convert(c.toJson()), flush: true);
     if (_file.existsSync()) {
       try {
         await _file.copy('${_file.path}.bak');
       } catch (_) {}
     }
-    await tmp.rename(_file.path);
+    try {
+      await tmp.rename(_file.path);
+    } on FileSystemException {
+      // Windows can refuse to replace a file another process is reading: retry once.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tmp.rename(_file.path);
+    }
   }
 
-  Future<void> save() => _write(config);
+  Future<void> save() => _locked(() => _write(config));
 
   /// Merges one source into the on-disk state without clobbering changes
   /// made to other sources by another process (e.g. the background task).
-  Future<void> saveSource(TrackedSource s) async {
+  Future<void> saveSource(TrackedSource s) => _locked(() async {
     final disk = _read();
     final i = disk.sources.indexWhere((e) => e.id == s.id);
     if (i >= 0) {
@@ -106,21 +123,21 @@ class ConfigStore {
     }
     config = AppConfig(config.settings, disk.sources);
     await _write(config);
-  }
+  });
 
-  Future<void> removeSource(String id) async {
+  Future<void> removeSource(String id) => _locked(() async {
     final disk = _read();
     disk.sources.removeWhere((e) => e.id == id);
     config = AppConfig(config.settings, disk.sources);
     await _write(config);
-  }
+  });
 
   /// Saves settings while keeping sources as they are on disk.
-  Future<void> saveSettings() async {
+  Future<void> saveSettings() => _locked(() async {
     final disk = _read();
     config = AppConfig(config.settings, disk.sources);
     await _write(config);
-  }
+  });
 
   Future<void> log(LogEntry e) async {
     try {

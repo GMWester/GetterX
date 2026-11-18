@@ -1,7 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../app/controller.dart';
+
 import 'package:getterx_core/models.dart';
+
 import 'common.dart';
 import 'log_page.dart';
 import 'settings_page.dart';

@@ -42,11 +42,13 @@ class GitHubSource implements ReleaseSource {
     final out = <RemoteRelease>[];
     final repoName = source.ref.split('/').last;
     for (var page = 1; ; page++) {
-      final list = await getJson(
-        client,
-        Uri.parse('$apiBase/repos/${source.ref}/releases?per_page=100&page=$page'),
-        headers: _headers,
-      ) as List;
+      final list =
+          await getJson(
+                client,
+                Uri.parse('$apiBase/repos/${source.ref}/releases?per_page=100&page=$page'),
+                headers: _headers,
+              )
+              as List;
       for (final r in list.cast<Map<String, dynamic>>()) {
         if (r['draft'] == true) continue;
         final tag = (r['tag_name'] as String?) ?? '';
@@ -93,11 +95,13 @@ class GitHubSource implements ReleaseSource {
   Future<List<RemoteRelease>> _fetchTags(TrackedSource source, String repoName, {required bool full}) async {
     final out = <RemoteRelease>[];
     for (var page = 1; ; page++) {
-      final list = await getJson(
-        client,
-        Uri.parse('$apiBase/repos/${source.ref}/tags?per_page=100&page=$page'),
-        headers: _headers,
-      ) as List;
+      final list =
+          await getJson(
+                client,
+                Uri.parse('$apiBase/repos/${source.ref}/tags?per_page=100&page=$page'),
+                headers: _headers,
+              )
+              as List;
       for (final t in list.cast<Map<String, dynamic>>()) {
         final name = t['name'] as String;
         out.add(

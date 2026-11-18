@@ -19,12 +19,32 @@ Optional sign-in for private GitHub repos, purchased itch.io games and private M
 
 | Platform | Download (from the latest release) |
 |---|---|
-| Windows | `GetterX-windows-x64-setup.exe` (choose **Install** or **Portable** in the installer) · `GetterX-windows-x64-portable.zip` |
-| macOS | `GetterX-macos.dmg` / `GetterX-macos.zip` · `GetterX-macos-portable.zip` |
-| Linux | `GetterX-linux-x64.AppImage` · `GetterX-linux-x64.deb` · `GetterX-linux-x64-portable.tar.gz` · installer: `curl -fsSL https://github.com/gmwester/GetterX/releases/latest/download/getterx-install.sh \| sh` |
-| Android, Android TV, Android XR | `GetterX-android-arm64-v8a.apk` (most devices), `-armeabi-v7a`, `-x86_64`, `-universal` |
+| Windows 10/11 x64 | `GetterX-windows-x64-setup.exe` (choose **Install** or **Portable** in the installer) · `GetterX-windows-x64-portable.zip` |
+| Windows on ARM | `GetterX-windows-arm64-setup.exe` · `GetterX-windows-arm64-portable.zip` |
+| macOS 10.15+ (Intel & Apple Silicon) | `GetterX-macos.dmg` / `GetterX-macos.zip` · `GetterX-macos-portable.zip` |
+| Linux x64 / ARM64 | `GetterX-linux-<x64\|arm64>.AppImage` · `.deb` · `-portable.tar.gz` · installer: `curl -fsSL https://github.com/gmwester/GetterX/releases/latest/download/getterx-install.sh \| sh` |
+| Android 7+, Android TV, Android XR | `GetterX-android-arm64-v8a.apk` (most devices), `-armeabi-v7a` (**32-bit ARM**), `-x86_64`, `-universal` |
 | iOS | `GetterX-ios-unsigned.ipa` (sideload with AltStore / SideStore / your own certificate) |
-| CLI (servers, scripts) | `getterx-cli-*` |
+
+### GetterX Lite (32-bit and other older systems)
+
+Same features (sources, modes, folders, filters, themes), but the interface opens **in your web browser**.
+For systems the desktop app cannot run on:
+
+| System | Download |
+|---|---|
+| Windows 32-bit (x86) | `GetterX-Lite-windows-x86.zip` → run `GetterX Lite.cmd` |
+| Linux 32-bit x86 | `GetterX-Lite-linux-x86.tar.gz` → run `getterx-cli` |
+| Linux 32-bit ARM (e.g. Raspberry Pi OS 32-bit) | `getterx-cli-linux-arm` |
+| Linux RISC-V | `getterx-cli-linux-riscv64` |
+| Any other system / servers | `getterx-cli-<os>-<arch>` |
+
+Starting it without arguments opens the page; `getterx-cli serve --no-browser` prints the private link instead (e.g. on a headless box). Lite reads logins from environment variables only.
+It listens on 127.0.0.1 only and every request needs the random key in the printed link.
+
+Not possible: 32-bit x86 Android, Android 6 and older, Windows 7/8 for the desktop app (Flutter no longer supports them; use Lite where it runs).
+
+**Themes**: Auto, Light, Dark and **OLED black** (pure black backgrounds), in the app and in Lite.
 
 **Portable mode**: if a `portable.txt` file sits next to the program, all settings are stored in `GetterX-Data` and downloads go to `GetterX-Downloads` next to it.
 
@@ -43,6 +63,8 @@ getterx-cli list
 Credentials for the CLI come from `GETTERX_GITHUB_TOKEN`, `GETTERX_CURSEFORGE_KEY`, `GETTERX_ITCH_KEY`, `GETTERX_MODRINTH_TOKEN`.
 
 ## Building / releasing
+
+Branches: `main` holds everything. `platform/android`, `platform/ios`, `platform/windows`, `platform/macos`, `platform/linux` and `platform/lite` build and test only that platform; CI merges `main` into them automatically after every push to `main`.
 
 * `flutter run` (app), `cd packages/getterx_core && dart test` (engine tests).
 * CI (`.github/workflows/build.yml`) builds every platform on every push.

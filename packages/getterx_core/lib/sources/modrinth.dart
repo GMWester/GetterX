@@ -19,11 +19,9 @@ class ModrinthSource implements ReleaseSource {
 
   @override
   Future<ProjectInfo> fetchProject(String ref) async {
-    final j = await getJson(
-      client,
-      Uri.parse('$apiBase/project/${Uri.encodeComponent(ref)}'),
-      headers: _headers,
-    ) as Map<String, dynamic>;
+    final j =
+        await getJson(client, Uri.parse('$apiBase/project/${Uri.encodeComponent(ref)}'), headers: _headers)
+            as Map<String, dynamic>;
     final type = j['project_type'] as String? ?? 'mod';
     return ProjectInfo(
       id: j['slug'] as String? ?? j['id'] as String,
@@ -36,11 +34,13 @@ class ModrinthSource implements ReleaseSource {
 
   @override
   Future<List<RemoteRelease>> fetchReleases(TrackedSource source, {bool full = true}) async {
-    final list = await getJson(
-      client,
-      Uri.parse('$apiBase/project/${Uri.encodeComponent(source.ref)}/version?include_changelog=false'),
-      headers: _headers,
-    ) as List;
+    final list =
+        await getJson(
+              client,
+              Uri.parse('$apiBase/project/${Uri.encodeComponent(source.ref)}/version?include_changelog=false'),
+              headers: _headers,
+            )
+            as List;
     return parseVersions(list, source.ref);
   }
 

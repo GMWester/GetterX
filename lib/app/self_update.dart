@@ -75,14 +75,16 @@ String? expectedAssetName(InstallKind k, PlatformInfo pl) => switch (k) {
       'x64' => 'x86_64',
       _ => 'universal',
     }}.apk',
-  InstallKind.windowsInstalled => 'GetterX-windows-x64-setup.exe',
-  InstallKind.windowsPortable => 'GetterX-windows-x64-portable.zip',
-  InstallKind.linuxAppImage => 'GetterX-linux-x64.AppImage',
-  InstallKind.linuxPackage => 'GetterX-linux-x64.deb',
-  InstallKind.linuxFolder => 'GetterX-linux-x64-portable.tar.gz',
+  InstallKind.windowsInstalled => 'GetterX-windows-${_desktopArch(pl)}-setup.exe',
+  InstallKind.windowsPortable => 'GetterX-windows-${_desktopArch(pl)}-portable.zip',
+  InstallKind.linuxAppImage => 'GetterX-linux-${_desktopArch(pl)}.AppImage',
+  InstallKind.linuxPackage => 'GetterX-linux-${_desktopArch(pl)}.deb',
+  InstallKind.linuxFolder => 'GetterX-linux-${_desktopArch(pl)}-portable.tar.gz',
   InstallKind.macApp => 'GetterX-macos.zip',
   InstallKind.ios || InstallKind.unknown => null,
 };
+
+String _desktopArch(PlatformInfo pl) => pl.arch == 'arm64' ? 'arm64' : 'x64';
 
 class SelfUpdater {
   final http.Client client;
@@ -184,8 +186,8 @@ class SelfUpdater {
         await _runShell(tmp.path, [
           'while kill -0 $pid 2>/dev/null; do sleep 1; done',
           'mkdir -p ${q('${tmp.path}/x')} && tar -xzf ${q(file.path)} -C ${q('${tmp.path}/x')}',
-            // Keep the current mode: only a portable install keeps portable.txt.
-            '[ -f ${q('$installDir/portable.txt')} ] || rm -f ${q('${tmp.path}/x/GetterX/portable.txt')}',
+          // Keep the current mode: only a portable install keeps portable.txt.
+          '[ -f ${q('$installDir/portable.txt')} ] || rm -f ${q('${tmp.path}/x/GetterX/portable.txt')}',
           'cp -a ${q('${tmp.path}/x/GetterX/.')} ${q('$installDir/')}',
           'nohup ${q(exe)} >/dev/null 2>&1 &',
         ]);

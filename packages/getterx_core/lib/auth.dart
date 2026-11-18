@@ -87,11 +87,9 @@ class Auth {
 
   /// Returns the login name for a token (validates it).
   Future<String> githubUser(String token) async {
-    final j = await getJson(
-      client,
-      Uri.parse('https://api.github.com/user'),
-      headers: {'Authorization': 'Bearer $token'},
-    ) as Map;
+    final j =
+        await getJson(client, Uri.parse('https://api.github.com/user'), headers: {'Authorization': 'Bearer $token'})
+            as Map;
     return j['login'] as String;
   }
 
@@ -128,11 +126,13 @@ class Auth {
   }
 
   Future<String> itchUser(String apiKey) async {
-    final j = await getJson(
-      client,
-      Uri.parse('https://api.itch.io/profile?api_key=$apiKey'),
-      headers: {'Authorization': 'Bearer $apiKey'},
-    ) as Map;
+    final j =
+        await getJson(
+              client,
+              Uri.parse('https://api.itch.io/profile?api_key=$apiKey'),
+              headers: {'Authorization': 'Bearer $apiKey'},
+            )
+            as Map;
     if (j['errors'] != null) throw SourceException('itch.io: ${j['errors']}');
     final u = (j['user'] as Map?) ?? const {};
     return (u['username'] ?? u['display_name'] ?? 'itch.io user') as String;

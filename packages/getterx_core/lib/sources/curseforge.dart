@@ -45,11 +45,15 @@ class CurseForgeSource implements ReleaseSource {
       final j = await getJson(client, Uri.parse('$baseUrl/v1/mods/$id'), headers: _headers) as Map<String, dynamic>;
       return (j['data'] as Map).cast();
     }
-    final j = await getJson(
-      client,
-      Uri.parse('$baseUrl/v1/mods/search').replace(queryParameters: {'gameId': '$minecraftGameId', 'slug': ref}),
-      headers: _headers,
-    ) as Map<String, dynamic>;
+    final j =
+        await getJson(
+              client,
+              Uri.parse(
+                '$baseUrl/v1/mods/search',
+              ).replace(queryParameters: {'gameId': '$minecraftGameId', 'slug': ref}),
+              headers: _headers,
+            )
+            as Map<String, dynamic>;
     final data = (j['data'] as List).cast<Map<String, dynamic>>();
     final match = data.where((m) => m['slug'] == ref).toList();
     if (match.isEmpty) throw SourceException('CurseForge project "$ref" not found');
@@ -76,12 +80,15 @@ class CurseForgeSource implements ReleaseSource {
     final out = <Map<String, dynamic>>[];
     const pageSize = 50;
     for (var index = 0; index < 10000; index += pageSize) {
-      final j = await getJson(
-        client,
-        Uri.parse('$baseUrl/v1/mods/$modId/files')
-            .replace(queryParameters: {'index': '$index', 'pageSize': '$pageSize'}),
-        headers: _headers,
-      ) as Map<String, dynamic>;
+      final j =
+          await getJson(
+                client,
+                Uri.parse(
+                  '$baseUrl/v1/mods/$modId/files',
+                ).replace(queryParameters: {'index': '$index', 'pageSize': '$pageSize'}),
+                headers: _headers,
+              )
+              as Map<String, dynamic>;
       final data = (j['data'] as List).cast<Map<String, dynamic>>();
       out.addAll(data);
       final total = (j['pagination'] as Map?)?['totalCount'] as int? ?? 0;

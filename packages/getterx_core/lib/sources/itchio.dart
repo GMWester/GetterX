@@ -72,11 +72,9 @@ class ItchSource implements ReleaseSource {
 
   Future<int?> _ownedDownloadKey(String gameId) async {
     for (var page = 1; page <= 50; page++) {
-      final j = await getJson(
-        client,
-        _api('/profile/owned-keys', {'page': '$page'}),
-        headers: _headers,
-      ) as Map<String, dynamic>;
+      final j =
+          await getJson(client, _api('/profile/owned-keys', {'page': '$page'}), headers: _headers)
+              as Map<String, dynamic>;
       final keys = (j['owned_keys'] as List? ?? const []).cast<Map>();
       for (final k in keys) {
         if ('${k['game_id']}' == gameId) return k['id'] as int?;
@@ -104,17 +102,19 @@ class ItchSource implements ReleaseSource {
       downloadKey = await _ownedDownloadKey(gameId);
       if (downloadKey != null) uploads = await _uploads(gameId, downloadKey);
     }
-    return [buildRelease(source.ref, uploads, apiBase: apiBase, apiKey: apiKey, downloadKeyId: downloadKey)]
-        .whereType<RemoteRelease>()
-        .toList();
+    return [
+      buildRelease(source.ref, uploads, apiBase: apiBase, apiKey: apiKey, downloadKeyId: downloadKey),
+    ].whereType<RemoteRelease>().toList();
   }
 
   Future<List<Map<String, dynamic>>> _uploads(String gameId, int? downloadKey) async {
-    final j = await getJson(
-      client,
-      _api('/games/$gameId/uploads', {if (downloadKey != null) 'download_key_id': '$downloadKey'}),
-      headers: _headers,
-    ) as Map<String, dynamic>;
+    final j =
+        await getJson(
+              client,
+              _api('/games/$gameId/uploads', {if (downloadKey != null) 'download_key_id': '$downloadKey'}),
+              headers: _headers,
+            )
+            as Map<String, dynamic>;
     if (j['errors'] != null) throw SourceException('itch.io: ${j['errors']}');
     return (j['uploads'] as List? ?? const []).cast<Map<String, dynamic>>();
   }

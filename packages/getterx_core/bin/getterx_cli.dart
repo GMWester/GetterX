@@ -7,6 +7,7 @@ import 'package:getterx_core/engine.dart';
 import 'package:getterx_core/models.dart';
 import 'package:getterx_core/paths.dart';
 import 'package:getterx_core/store.dart';
+import 'package:getterx_core/web_ui.dart';
 
 const usage = '''
 GetterX CLI
@@ -25,6 +26,9 @@ Commands:
   remove <name|id> [--delete-files]
   preview <name|id>          Show what would be downloaded / deleted
   paths                      Show data and download folders
+  serve [--port N] [--no-browser]
+                             GetterX Lite: open the full interface in your web browser
+                             (for systems the desktop app does not support, e.g. 32-bit)
 
 Credentials (optional) are read from environment variables only:
   GETTERX_GITHUB_TOKEN, GETTERX_CURSEFORGE_KEY, GETTERX_ITCH_KEY, GETTERX_MODRINTH_TOKEN
@@ -38,7 +42,9 @@ Future<void> main(List<String> argv) async {
     dataDir = args[di + 1];
     args.removeRange(di, di + 2);
   }
-  if (args.isEmpty || args.first == '-h' || args.first == '--help') {
+  // Double-clicking the program (no arguments) opens GetterX Lite in the browser.
+  if (args.isEmpty) args.add('serve');
+  if (args.first == '-h' || args.first == '--help') {
     stdout.write(usage);
     return;
   }
@@ -55,6 +61,16 @@ Future<void> main(List<String> argv) async {
       orElse: () => throw StateError('No source "$q"'),
     );
     switch (args.first) {
+      case 'serve':
+        final pi = args.indexOf('--port');
+        final ui = WebUi(engine, store);
+        final url = await ui.start(port: pi >= 0 ? int.parse(args[pi + 1]) : 8765);
+        stdout.writeln('GetterX Lite is running. Open this link (it contains your private access key):');
+        stdout.writeln('  $url');
+        stdout.writeln('Press Ctrl+C to stop. Automatic checks run while this is open.');
+        if (!args.contains('--no-browser')) await _openBrowser(url.toString());
+        await ProcessSignal.sigint.watch().first;
+        await ui.close();
       case 'paths':
         stdout.writeln('data:      ${paths.dataDir.path}${paths.portable ? '  (portable)' : ''}');
         stdout.writeln('downloads: ${engine.downloadRoot}');
@@ -128,4 +144,17 @@ Future<void> main(List<String> argv) async {
     engine.dispose();
   }
   exit(code);
+}
+
+Future<void> _openBrowser(String url) async {
+  try {
+    if (Platform.isWindows) {
+      // `start` treats the first quoted argument as a window title.
+      await Process.start('cmd', ['/c', 'start', '', url.replaceAll('&', '^&')]);
+    } else if (Platform.isMacOS) {
+      await Process.start('open', [url]);
+    } else {
+      await Process.start('xdg-open', [url]);
+    }
+  } catch (_) {}
 }

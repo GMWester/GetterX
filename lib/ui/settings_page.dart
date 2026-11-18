@@ -188,17 +188,22 @@ class _SettingsPageState extends State<SettingsPage> {
               const SectionTitle('Appearance'),
               ListTile(
                 title: const Text('Theme'),
-                trailing: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'system', label: Text('Auto')),
-                    ButtonSegment(value: 'light', label: Text('Light')),
-                    ButtonSegment(value: 'dark', label: Text('Dark')),
-                  ],
-                  selected: {s.themeMode},
-                  onSelectionChanged: (v) {
-                    s.themeMode = v.first;
-                    _save();
-                  },
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SegmentedButton<String>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(value: 'system', label: Text('Auto')),
+                      ButtonSegment(value: 'light', label: Text('Light')),
+                      ButtonSegment(value: 'dark', label: Text('Dark')),
+                      ButtonSegment(value: 'oled', label: Text('OLED black')),
+                    ],
+                    selected: {s.themeMode},
+                    onSelectionChanged: (v) {
+                      s.themeMode = v.first;
+                      _save();
+                    },
+                  ),
                 ),
               ),
               ExpansionTile(

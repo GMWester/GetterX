@@ -36,16 +36,18 @@ class GetterXApp extends StatelessWidget {
       listenable: c,
       builder: (context, _) {
         const seed = Color(0xFF1BD96A);
+        final mode = c.settings.themeMode;
+        final dark = ThemeData(colorSchemeSeed: seed, brightness: Brightness.dark);
         return MaterialApp(
           title: 'GetterX',
           debugShowCheckedModeBanner: false,
-          themeMode: switch (c.settings.themeMode) {
+          themeMode: switch (mode) {
             'light' => ThemeMode.light,
-            'dark' => ThemeMode.dark,
+            'dark' || 'oled' => ThemeMode.dark,
             _ => ThemeMode.system,
           },
           theme: ThemeData(colorSchemeSeed: seed, brightness: Brightness.light),
-          darkTheme: ThemeData(colorSchemeSeed: seed, brightness: Brightness.dark),
+          darkTheme: mode == 'oled' ? oledTheme(dark) : dark,
           // Android TV remotes: the centre/select button activates the focused item.
           shortcuts: {
             ...WidgetsApp.defaultShortcuts,
@@ -56,4 +58,27 @@ class GetterXApp extends StatelessWidget {
       },
     );
   }
+}
+
+/// Pure-black theme for OLED screens (pixels off = less power, no glow).
+ThemeData oledTheme(ThemeData dark) {
+  final cs = dark.colorScheme.copyWith(
+    surface: Colors.black,
+    surfaceDim: Colors.black,
+    surfaceBright: const Color(0xFF121212),
+    surfaceContainerLowest: Colors.black,
+    surfaceContainerLow: const Color(0xFF050505),
+    surfaceContainer: const Color(0xFF0A0A0A),
+    surfaceContainerHigh: const Color(0xFF101010),
+    surfaceContainerHighest: const Color(0xFF161616),
+  );
+  return dark.copyWith(
+    colorScheme: cs,
+    scaffoldBackgroundColor: Colors.black,
+    canvasColor: Colors.black,
+    appBarTheme: dark.appBarTheme.copyWith(backgroundColor: Colors.black, surfaceTintColor: Colors.transparent),
+    cardTheme: dark.cardTheme.copyWith(color: const Color(0xFF0A0A0A), surfaceTintColor: Colors.transparent),
+    dialogTheme: dark.dialogTheme.copyWith(backgroundColor: const Color(0xFF0A0A0A)),
+    dividerColor: const Color(0xFF1E1E1E),
+  );
 }

@@ -31,10 +31,9 @@ class ForgejoSource implements ReleaseSource {
     final (host, repo) = _split(source.ref);
     final out = <RemoteRelease>[];
     for (var page = 1; page < 200; page++) {
-      final list = await getJson(
-        client,
-        Uri.https(host, '/api/v1/repos/$repo/releases', {'limit': '50', 'page': '$page'}),
-      ) as List;
+      final list =
+          await getJson(client, Uri.https(host, '/api/v1/repos/$repo/releases', {'limit': '50', 'page': '$page'}))
+              as List;
       for (final r in list.cast<Map<String, dynamic>>()) {
         if (r['draft'] == true) continue;
         final tag = r['tag_name'] as String? ?? '';
