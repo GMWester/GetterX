@@ -107,11 +107,11 @@ class Downloader {
           await out.close();
         }
         hasher?.close();
-        if (rf.size != null && received != rf.size) {
+        if (hp != null) {
+          // A matching checksum proves the file; a store's listed size can be stale.
+          if (sink.value.toString() != hp.$2) throw SourceException('Checksum mismatch for ${rf.name}');
+        } else if (rf.size != null && received != rf.size) {
           throw SourceException('Size mismatch for ${rf.name}: got $received, expected ${rf.size}');
-        }
-        if (hp != null && sink.value.toString() != hp.$2) {
-          throw SourceException('Checksum mismatch for ${rf.name}');
         }
         if (dest.existsSync()) await dest.delete();
         await part.rename(dest.path);

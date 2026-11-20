@@ -174,9 +174,12 @@ class ItchSource implements ReleaseSource {
         RemoteFile(
           name: name,
           urls: [Uri.parse('$apiBase/uploads/${u['id']}/download').replace(queryParameters: q).toString()],
-          size: u['size'] as int?,
+          // Uploads pushed with butler ("builds") are zipped on demand, so the
+          // served file differs from the listed size / MD5: use them only for
+          // classic uploads.
+          size: u['build_id'] == null ? u['size'] as int? : null,
           hashes: {
-            if (u['md5_hash'] is String && (u['md5_hash'] as String).isNotEmpty)
+            if (u['build_id'] == null && u['md5_hash'] is String && (u['md5_hash'] as String).isNotEmpty)
               'md5': (u['md5_hash'] as String).toLowerCase(),
           },
           platforms: platforms,
