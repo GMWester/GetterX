@@ -75,7 +75,7 @@ class ItchSource implements ReleaseSource {
       final j =
           await getJson(client, _api('/profile/owned-keys', {'page': '$page'}), headers: _headers)
               as Map<String, dynamic>;
-      final keys = (j['owned_keys'] as List? ?? const []).cast<Map>();
+      final keys = itchList(j['owned_keys']);
       for (final k in keys) {
         if ('${k['game_id']}' == gameId) return k['id'] as int?;
       }
@@ -97,10 +97,17 @@ class ItchSource implements ReleaseSource {
       if (downloadKey == null) rethrow;
       uploads = await _uploads(gameId, downloadKey);
     }
-    if (uploads.isEmpty) {
+    if (uploads.isEmpty && downloadKey == null) {
       // Paid games list nothing without the buyer's download key.
       downloadKey = await _ownedDownloadKey(gameId);
       if (downloadKey != null) uploads = await _uploads(gameId, downloadKey);
+    }
+    if (uploads.isEmpty) {
+      throw SourceException(
+        'itch.io lists no downloadable files for this game with your account. It may be played in the browser, '
+        'hosted on another site, or need to be bought / claimed (free with an optional payment: '
+        'click "Download" on its itch.io page once while signed in, then check again).',
+      );
     }
     return [
       buildRelease(source.ref, uploads, apiBase: apiBase, apiKey: apiKey, downloadKeyId: downloadKey),
@@ -116,7 +123,22 @@ class ItchSource implements ReleaseSource {
             )
             as Map<String, dynamic>;
     if (j['errors'] != null) throw SourceException('itch.io: ${j['errors']}');
-    return (j['uploads'] as List? ?? const []).cast<Map<String, dynamic>>();
+    return itchList(j['uploads']).map((m) => m.cast<String, dynamic>()).toList();
+  }
+
+  /// itch.io's API is written in Lua, where an empty list and an empty object
+  /// are the same table: an empty list arrives as `{}`, and some lists arrive
+  /// as objects keyed by id. Accept all of those shapes.
+  static List<Map> itchList(Object? v) {
+    if (v is List) return v.whereType<Map>().toList();
+    if (v is Map) return v.values.whereType<Map>().toList();
+    return const [];
+  }
+
+  static List<String> _strings(Object? v) {
+    if (v is List) return v.map((e) => '$e').toList();
+    if (v is Map) return [...v.values.map((e) => '$e'), ...v.keys.map((e) => '$e')];
+    return const [];
   }
 
   static RemoteRelease? buildRelease(
@@ -136,7 +158,7 @@ class ItchSource implements ReleaseSource {
       if (updated != null && (newest == null || updated.isAfter(newest))) newest = updated;
       sig.write('${u['id']}:${u['build_id'] ?? ''}:${u['updated_at'] ?? ''}:${u['md5_hash'] ?? ''};');
       final traits = <String>{
-        ...((u['traits'] as List?) ?? const []).map((e) => '$e'),
+        ..._strings(u['traits']),
         for (final t in ['p_windows', 'p_linux', 'p_osx', 'p_android'])
           if (u[t] == true) t,
       };
