@@ -1,3 +1,6 @@
+import 'package:getterx_core/downloader.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:io';
 import 'dart:convert';
 
 import 'package:getterx_core/backup.dart';
@@ -327,5 +330,44 @@ void main() {
       ItchSource(none, apiKey: 'k').fetchReleases(s),
       throwsA(isA<SourceException>().having((e) => e.message, 'message', contains('no downloadable files'))),
     );
+  });
+
+  test('itch.io builds: listed size/md5 are not enforced; downloader trusts a matching checksum over size', () async {
+    final rel = ItchSource.buildRelease(
+      'a/b',
+      [
+        {
+          'id': 1,
+          'filename': 'votv.zip',
+          'size': 2310549280,
+          'md5_hash': 'aa',
+          'build_id': 99,
+          'updated_at': '2026-11-12T11:48:00Z',
+        },
+        {'id': 2, 'filename': 'classic.zip', 'size': 5, 'md5_hash': 'BB'},
+      ],
+      apiBase: 'https://api.itch.io',
+      apiKey: 'k',
+    )!;
+    expect(rel.files[0].size, isNull);
+    expect(rel.files[0].hashes, isEmpty);
+    expect(rel.files[1].size, 5);
+    expect(rel.files[1].hashes['md5'], 'bb');
+
+    final tmp = await Directory.systemTemp.createTemp('gxsize');
+    final body = utf8.encode('hello world');
+    final client = MockClient((req) async => http.Response.bytes(body, 200));
+    // Wrong listed size but correct SHA-1: accepted.
+    await Downloader(client).download(
+      RemoteFile(name: 'a', urls: const ['https://x/a'], size: 999, hashes: {'sha1': sha1.convert(body).toString()}),
+      File('${tmp.path}/a'),
+    );
+    expect(File('${tmp.path}/a').readAsStringSync(), 'hello world');
+    // Wrong size and no checksum: still rejected.
+    await expectLater(
+      Downloader(client).download(const RemoteFile(name: 'b', urls: ['https://x/b'], size: 999), File('${tmp.path}/b')),
+      throwsA(isA<SourceException>()),
+    );
+    await tmp.delete(recursive: true);
   });
 }
