@@ -8,8 +8,10 @@ import 'package:getterx_core/platform_match.dart';
 import 'package:getterx_core/search.dart';
 import 'package:getterx_core/selector.dart';
 import 'package:getterx_core/sources/hangar.dart';
+import 'package:getterx_core/sources/itchio.dart';
 import 'package:getterx_core/sources/pypi.dart';
 import 'package:getterx_core/sources/sourceforge.dart';
+import 'package:getterx_core/sources/source.dart';
 import 'package:getterx_core/sources/spigot.dart';
 import 'package:getterx_core/virustotal.dart';
 import 'package:http/http.dart' as http;
@@ -273,5 +275,57 @@ void main() {
       'https://github.com/a/b',
       'https://f-droid.org/packages/x',
     ]);
+  });
+
+  test('itch.io: empty lists sent as {} and keyed objects are accepted', () async {
+    var call = 0;
+    final client = MockClient((req) async {
+      final path = req.url.path;
+      if (path.endsWith('/uploads')) {
+        call++;
+        // First: no files without a download key ({} = empty list in Lua). Then keyed by id.
+        if (req.url.queryParameters['download_key_id'] == null) return http.Response('{"uploads":{}}', 200);
+        return http.Response(
+          jsonEncode({
+            'uploads': {
+              '77': {
+                'id': 77,
+                'filename': 'votv-win.zip',
+                'traits': {},
+                'p_windows': true,
+                'updated_at': '2026-11-01T00:00:00Z',
+              },
+            },
+          }),
+          200,
+        );
+      }
+      if (path.endsWith('/owned-keys')) {
+        return http.Response(
+          jsonEncode({
+            'owned_keys': {
+              '1': {'id': 5, 'game_id': 1635465},
+            },
+            'per_page': 50,
+          }),
+          200,
+        );
+      }
+      return http.Response('{}', 404);
+    });
+    final s = TrackedSource(id: 'i', kind: SourceKind.itchio, ref: '1635465', name: 'VOTV');
+    final rel = await ItchSource(client, apiKey: 'k').fetchReleases(s);
+    expect(rel.single.files.single.name, 'votv-win.zip');
+    expect(rel.single.files.single.platforms, {'windows'});
+    expect(rel.single.files.single.urls.single, contains('download_key_id=5'));
+    expect(call, 2);
+
+    final none = MockClient(
+      (req) async => http.Response(req.url.path.endsWith('/owned-keys') ? '{"owned_keys":{}}' : '{"uploads":{}}', 200),
+    );
+    await expectLater(
+      ItchSource(none, apiKey: 'k').fetchReleases(s),
+      throwsA(isA<SourceException>().having((e) => e.message, 'message', contains('no downloadable files'))),
+    );
   });
 }
